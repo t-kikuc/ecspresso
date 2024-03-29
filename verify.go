@@ -25,6 +25,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"github.com/aws/smithy-go"
 	"github.com/fatih/color"
 	"github.com/kayac/ecspresso/v2/registry"
 )
@@ -121,7 +122,21 @@ func (v *verifier) existsSecretValue(ctx context.Context, from string) error {
 		WithDecryption: aws.Bool(true),
 	})
 	if err != nil {
-		return fmt.Errorf("failed to get ssm parameter %s: %w", name, err)
+		var ae smithy.APIError
+		if errors.As(err, &ae) && ae.ErrorCode() == "AccessDeniedException" {
+			// fallback to GetParameter (older ecspresso implementation)
+			// TODO: This fallback will be removed in 2.4
+			Log("[WARNING] failed to get ssm parameters with GetParameters API, fallback to GetParameter API: %s", err)
+			_, err := v.ssm.GetParameter(ctx, &ssm.GetParameterInput{
+				Name:           aws.String(name),
+				WithDecryption: aws.Bool(true),
+			})
+			if err != nil {
+				return fmt.Errorf("failed to get ssm parameter %s: %w", name, err)
+			}
+		} else {
+			return fmt.Errorf("failed to get ssm parameters %s: %w", name, err)
+		}
 	}
 	return nil
 }
