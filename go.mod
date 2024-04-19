@@ -23,7 +23,7 @@ require (
 	github.com/aws/smithy-go v1.19.0
 	github.com/fatih/color v1.16.0
 	github.com/fujiwara/cfn-lookup v1.0.0
-	github.com/fujiwara/ecsta v0.4.3
+	github.com/fujiwara/ecsta v0.4.5
 	github.com/fujiwara/logutils v1.1.2
 	github.com/fujiwara/tfstate-lookup v1.1.6
 	github.com/goccy/go-yaml v1.9.5

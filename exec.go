@@ -16,6 +16,7 @@ type ExecOption struct {
 	LocalPort   int    `help:"local port number" default:"0"`
 	Port        int    `help:"remote port number (required for --port-forward)" default:"0"`
 	Host        string `help:"remote host (required for --port-forward)" default:""`
+	L           string `name:"L" short:"L" help:"short expression of local-port:host:port" default:""`
 }
 
 func (d *App) NewEcsta(ctx context.Context) (*ecsta.Ecsta, error) {
@@ -52,6 +53,7 @@ func (d *App) Exec(ctx context.Context, opt ExecOption) error {
 			LocalPort:  opt.LocalPort,
 			RemotePort: opt.Port,
 			RemoteHost: opt.Host,
+			L:          opt.L,
 			Family:     &family,
 			Service:    service,
 		})
