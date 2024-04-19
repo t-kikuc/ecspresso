@@ -474,7 +474,7 @@ If the file extension is .jsonnet, ecspresso will process Jsonnet first, convert
 
 ```jsonnet
 {
-  cluser: 'default',
+  cluster: 'default',
   service: 'myservice',
   service_definition: 'ecs-service-def.jsonnet',
   task_definition: 'ecs-task-def.jsonnet',
@@ -935,7 +935,7 @@ will be rendered into this.
 {
   "string": "ImString",
   "stringlist": "ImStringList1",
-  "securestring": "ImSecureStriing"
+  "securestring": "ImSecureString"
 }
 ```
 
@@ -963,7 +963,7 @@ will be rendered into this.
   ]
 ```
 
-## LICENCE
+## LICENSE
 
 MIT
 
