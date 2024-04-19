@@ -749,6 +749,7 @@ Flags:
       --local-port=0              local port number
       --port=0                    remote port number (required for --port-forward)
       --host=                     remote host (required for --port-forward)
+      -L                          short expression of local-port:host:port
 ```
 
 If `--id` is not set, the command shows a list of tasks to select a task to execute.
@@ -769,6 +770,12 @@ $ ecspresso exec --port-forward --port 80 --local-port 8080
 If `--id` is not set, the command shows a list of tasks to select a task to forward port.
 
 When `--local-port` is not specified, use the ephemeral port for local port.
+
+`-L` option is a short expression of `local-port:host:port`. For example, `-L 8080:example.com:80` is equivalent to `--local-port 8080 --host example.com --port 80`.
+
+```
+$ ecspresso exec --port-forward -L 8080:example.com:80
+```
 
 ## Plugins
 
