@@ -60,3 +60,28 @@ jobs:
           version: v2.0.4
       - run: |
           ecspresso version 2>&1 | fgrep v2.0.4
+
+  install_on_arm:
+    strategy:
+      matrix:
+        runner:
+          - buildjet-2vcpu-ubuntu-2204-arm
+    name: test action
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: kayac/ecspresso@v2-action-testing
+        with:
+          version: latest
+      - run: |
+          ecspresso version 2>&1 | fgrep v2.
+      - uses: kayac/ecspresso@v2-action-testing
+        with:
+          version: v2.0.4
+      - run: |
+          ecspresso version 2>&1 | fgrep v2.0.4
+      - uses: kayac/ecspresso@v2-action-testing
+        with:
+          version-file: tests/.ecspresso-version
+      - run: |
+          ecspresso version 2>&1 | fgrep v2.0.0
