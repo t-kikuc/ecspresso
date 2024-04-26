@@ -1,6 +1,7 @@
 package ecspresso_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -26,7 +27,7 @@ func TestToNumberCPU(t *testing.T) {
 	for _, s := range testSuiteToNumberCPU {
 		cpu := ecspresso.ToNumberCPU(s[0])
 		if aws.ToString(cpu) != s[1] {
-			t.Errorf("unexpected vcpu convertion %s => %s expected %s", s[0], *cpu, s[1])
+			t.Errorf("unexpected vcpu conversion %s => %s expected %s", s[0], *cpu, s[1])
 		}
 	}
 }
@@ -35,7 +36,7 @@ func TestToNumberMemory(t *testing.T) {
 	for _, s := range testSuiteToNumberMemory {
 		cpu := ecspresso.ToNumberMemory(s[0])
 		if aws.ToString(cpu) != s[1] {
-			t.Errorf("unexpected memory convertion %s => %s expected %s", s[0], *cpu, s[1])
+			t.Errorf("unexpected memory conversion %s => %s expected %s", s[0], *cpu, s[1])
 		}
 	}
 }
@@ -137,8 +138,8 @@ var testTaskDefinition2 = &ecspresso.TaskDefinitionInput{
 }
 
 func TestTaskDefinitionDiffer(t *testing.T) {
-	ecspresso.SortTaskDefinitionForDiff(testTaskDefinition1)
-	ecspresso.SortTaskDefinitionForDiff(testTaskDefinition2)
+	ecspresso.SortTaskDefinition(testTaskDefinition1)
+	ecspresso.SortTaskDefinition(testTaskDefinition2)
 	td1, _ := ecspresso.MarshalJSONForAPI(testTaskDefinition1)
 	td2, _ := ecspresso.MarshalJSONForAPI(testTaskDefinition2)
 	if diff := cmp.Diff(td1, td2); diff != "" {
@@ -211,4 +212,109 @@ func TestServiceDefinitionDiffer(t *testing.T) {
 	if diff := cmp.Diff(sv1Bytes, sv2Bytes); diff != "" {
 		t.Error("failed to SortTaskDefinitionForDiff", diff)
 	}
+}
+
+var testServiceDefinitionNoDesiredCount = &ecspresso.Service{
+	Service: types.Service{
+		LaunchType: types.LaunchTypeFargate,
+	},
+	DesiredCount: nil,
+}
+
+var testServiceDefinitionHasDesiredCount = &ecspresso.Service{
+	Service: types.Service{
+		LaunchType: types.LaunchTypeFargate,
+	},
+	DesiredCount: ptr(int32(2)),
+}
+
+func TestDiffServices(t *testing.T) {
+	t.Run("when local.DesiredCount is nil, ignore diff of DesiredCount", func(t *testing.T) {
+		diff, err := ecspresso.DiffServices(
+			testServiceDefinitionNoDesiredCount,
+			testServiceDefinitionHasDesiredCount,
+			"file", true,
+		)
+		if err != nil {
+			t.Error(err)
+		}
+		if diff != "" {
+			t.Errorf("unexpected diff: %s", diff)
+		}
+	})
+	t.Run("when local.DesiredCount is not nil, detect diff of DesiredCount.", func(t *testing.T) {
+		diff, err := ecspresso.DiffServices(
+			testServiceDefinitionHasDesiredCount,
+			testServiceDefinitionNoDesiredCount,
+			"file", true,
+		)
+		if err != nil {
+			t.Error(err)
+		}
+		if diff == "" {
+			t.Errorf("unexpected diff: %s", diff)
+		}
+	})
+
+	t.Run("remote service is nil", func(t *testing.T) {
+		diff, err := ecspresso.DiffServices(
+			testServiceDefinitionNoDesiredCount,
+			nil,
+			"file", true,
+		)
+		if err != nil {
+			t.Error(err)
+		}
+		if diff == "" {
+			t.Errorf("unexpected diff: %s", diff)
+		}
+		minusDiffs := 0
+		for _, line := range strings.Split(diff, "\n") {
+			if strings.HasPrefix(line, "-") {
+				minusDiffs++
+			}
+		}
+		if minusDiffs != 1 {  // The first line is "---"
+			t.Errorf("unexpected diff. has many minus diffs: %s", diff)
+		}
+	})
+}
+
+func TestDiffTaskDefs(t *testing.T) {
+	t.Run("diff task defs same actually", func(t *testing.T) {
+		diff, err := ecspresso.DiffTaskDefs(
+			testTaskDefinition1,
+			testTaskDefinition2,
+			"file", "remote", true,
+		)
+		if err != nil {
+			t.Error(err)
+		}
+		if diff != "" {
+			t.Errorf("unexpected diff: %s", diff)
+		}
+	})
+
+	t.Run("diff task defs remote nil", func(t *testing.T) {
+		diff, err := ecspresso.DiffTaskDefs(
+			testTaskDefinition1,
+			nil,
+			"file", "", true,
+		)
+		if err != nil {
+			t.Error(err)
+		}
+		if diff == "" {
+			t.Errorf("unexpected diff: %s", diff)
+		}
+		minusDiffs := 0
+		for _, line := range strings.Split(diff, "\n") {
+			if strings.HasPrefix(line, "-") {
+				minusDiffs++
+			}
+		}
+		if minusDiffs != 1 { // The first line is "---"
+			t.Errorf("unexpected diff. has many minus diffs: %s", diff)
+		}
+	})
 }

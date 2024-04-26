@@ -28,7 +28,7 @@ func (d *App) createService(ctx context.Context, opt DeployOption) error {
 		count = aws.Int32(0) // Must provide desired count for replica scheduling strategy
 	}
 
-	if *opt.DryRun {
+	if opt.DryRun {
 		d.Log("task definition:")
 		d.OutputJSONForAPI(os.Stderr, td)
 		d.Log("service definition:")
@@ -38,7 +38,7 @@ func (d *App) createService(ctx context.Context, opt DeployOption) error {
 	}
 
 	var tdArn string
-	if aws.ToBool(opt.LatestTaskDefinition) || aws.ToBool(opt.SkipTaskDefinition) {
+	if opt.LatestTaskDefinition || opt.SkipTaskDefinition {
 		var err error
 		tdArn, err = d.findLatestTaskDefinitionArn(ctx, aws.ToString(td.Family))
 		if err != nil {
@@ -75,13 +75,14 @@ func (d *App) createService(ctx context.Context, opt DeployOption) error {
 		ServiceRegistries:             svd.ServiceRegistries,
 		Tags:                          svd.Tags,
 		TaskDefinition:                aws.String(tdArn),
+		VolumeConfigurations:          svd.VolumeConfigurations,
 	}
 	if _, err := d.ecs.CreateService(ctx, createServiceInput); err != nil {
 		return fmt.Errorf("failed to create service: %w", err)
 	}
 	d.Log("Service is created")
 
-	if *opt.NoWait {
+	if !opt.Wait {
 		return nil
 	}
 

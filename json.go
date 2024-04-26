@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"io"
 	"strings"
+
+	"github.com/itchyny/gojq"
 )
 
 func (d *App) OutputJSONForAPI(w io.Writer, v interface{}) error {
 	b, err := MarshalJSONForAPI(v)
 	if err != nil {
-		fmt.Errorf("failed to marshal json: %w", err)
+		return fmt.Errorf("failed to marshal json: %w", err)
 	}
 	_, err = w.Write(b)
 	return err
@@ -24,7 +26,10 @@ func MustMarshalJSONStringForAPI(v interface{}) string {
 	return string(b)
 }
 
-func MarshalJSONForAPI(v interface{}) ([]byte, error) {
+func MarshalJSONForAPI(v interface{}, queries ...string) ([]byte, error) {
+	if v == nil {
+		return nil, nil
+	}
 	b, err := json.Marshal(v)
 	if err != nil {
 		return nil, err
@@ -34,6 +39,13 @@ func MarshalJSONForAPI(v interface{}) ([]byte, error) {
 		return nil, err
 	}
 	walkMap(m, jsonKeyForAPI)
+	if len(queries) > 0 {
+		for _, q := range queries {
+			if m, err = jqFilter(m, q); err != nil {
+				return nil, err
+			}
+		}
+	}
 	bs, err := json.MarshalIndent(m, "", "  ")
 	if err != nil {
 		return nil, err
@@ -42,7 +54,7 @@ func MarshalJSONForAPI(v interface{}) ([]byte, error) {
 	return bs, nil
 }
 
-func (d *App) UnmarshalJSONForStruct(src []byte, v interface{}, path string) error {
+func UnmarshalJSONForStruct(src []byte, v interface{}, path string) error {
 	m := map[string]interface{}{}
 	if err := json.Unmarshal(src, &m); err != nil {
 		return err
@@ -108,4 +120,25 @@ func walkArray(a []interface{}, fn func(string) string) {
 		default:
 		}
 	}
+}
+
+func jqFilter(m map[string]interface{}, q string) (map[string]interface{}, error) {
+	query, err := gojq.Parse(q)
+	if err != nil {
+		return nil, err
+	}
+	iter := query.Run(m)
+	for {
+		v, ok := iter.Next()
+		if !ok {
+			break
+		}
+		if err, ok := v.(error); ok {
+			return nil, err
+		}
+		if m, ok = v.(map[string]interface{}); !ok {
+			return nil, fmt.Errorf("query result is not map[string]interface{}: %v", v)
+		}
+	}
+	return m, nil
 }

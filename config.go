@@ -112,6 +112,15 @@ func (l *configLoader) Load(ctx context.Context, path string, version string) (*
 	return conf, nil
 }
 
+func (c *Config) OverrideByCLIOptions(opt *CLIOptions) {
+	if opt.Timeout != nil {
+		c.Timeout = &Duration{*opt.Timeout}
+	}
+	if opt.FilterCommand != "" {
+		c.FilterCommand = opt.FilterCommand
+	}
+}
+
 // Restrict restricts a configuration.
 func (c *Config) Restrict(ctx context.Context) error {
 	if c.Cluster == "" {
@@ -158,9 +167,8 @@ func (c *Config) Restrict(ctx context.Context) error {
 	if err := c.setupPlugins(ctx); err != nil {
 		return fmt.Errorf("failed to setup plugins: %w", err)
 	}
-
 	if c.FilterCommand != "" {
-		Log("[WARNING] filter_command is deprecated. Use %s environment variable instead.", FilterCommandEnv)
+		Log("[WARNING] filter_command is deprecated. Use environment variable or CLI flag instead.")
 	}
 	return nil
 }
@@ -176,7 +184,12 @@ func (c *Config) AssumeRole(assumeRoleARN string) {
 }
 
 func (c *Config) setupPlugins(ctx context.Context) error {
-	for _, p := range c.Plugins {
+	plugins := []ConfigPlugin{}
+	for _, name := range defaultPluginNames {
+		plugins = append(plugins, ConfigPlugin{Name: name})
+	}
+	plugins = append(plugins, c.Plugins...)
+	for _, p := range plugins {
 		if err := p.Setup(ctx, c); err != nil {
 			return err
 		}

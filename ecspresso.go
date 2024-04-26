@@ -31,15 +31,11 @@ import (
 const DefaultDesiredCount = -1
 const DefaultConfigFilePath = "ecspresso.yml"
 const dryRunStr = "DRY RUN"
-const FilterCommandEnv = "ECSPRESSO_FILTER_COMMAND"
 
 var Version string
 var delayForServiceChanged = 3 * time.Second
+var waiterMaxDelay = 15 * time.Second
 var spcIndent = "  "
-
-func ptr[T any](v T) *T {
-	return &v
-}
 
 type TaskDefinition = types.TaskDefinition
 
@@ -52,6 +48,7 @@ func taskDefinitionName(t *TaskDefinition) string {
 type Service struct {
 	types.Service
 	ServiceConnectConfiguration *types.ServiceConnectConfiguration
+	VolumeConfigurations        []types.ServiceVolumeConfiguration
 	DesiredCount                *int32
 }
 
@@ -60,16 +57,24 @@ func (d *App) newServiceFromTypes(ctx context.Context, in types.Service) (*Servi
 		Service:      in,
 		DesiredCount: aws.Int32(in.DesiredCount),
 	}
-	for _, dp := range in.Deployments {
-		d.Log("[DEBUG] deployment: %s %s", *dp.Id, *dp.Status)
-		if aws.ToString(dp.Status) != "PRIMARY" {
-			continue
-		}
-		scc := dp.ServiceConnectConfiguration
-		sv.ServiceConnectConfiguration = scc
-		if scc == nil {
-			break
-		}
+	dps := lo.Filter(in.Deployments, func(dp types.Deployment, i int) bool {
+		return aws.ToString(dp.Status) == "PRIMARY"
+	})
+	if sv.isCodeDeploy() {
+		// CodeDeploy does not support ServiceConnectConfiguration and VolumeConfigurations
+		return &sv, nil
+	}
+	if len(dps) == 0 {
+		d.Log("[WARNING] no primary deployment")
+		return &sv, nil
+	}
+	dp := dps[0]
+	d.Log("[DEBUG] deployment: %s %s", *dp.Id, *dp.Status)
+
+	// ServiceConnect
+	scc := dp.ServiceConnectConfiguration
+	sv.ServiceConnectConfiguration = scc
+	if scc != nil {
 		// resolve sd namespace arn to name
 		id := arnToName(aws.ToString(scc.Namespace))
 		res, err := d.sd.GetNamespace(ctx, &servicediscovery.GetNamespaceInput{
@@ -79,7 +84,6 @@ func (d *App) newServiceFromTypes(ctx context.Context, in types.Service) (*Servi
 			var oe *smithy.OperationError
 			if errors.As(err, &oe) {
 				d.Log("[WARNING] failed to get namespace: %s", oe)
-				break
 			} else {
 				return nil, fmt.Errorf("failed to get namespace: %w", err)
 			}
@@ -87,8 +91,14 @@ func (d *App) newServiceFromTypes(ctx context.Context, in types.Service) (*Servi
 		if res.Namespace != nil {
 			scc.Namespace = res.Namespace.Name
 		}
-		break
 	}
+
+	// VolumeConfigurations
+	if dp.VolumeConfigurations != nil {
+		d.Log("[DEBUG] VolumeConfigurations: %#v", dp.VolumeConfigurations)
+		sv.VolumeConfigurations = dp.VolumeConfigurations
+	}
+
 	return &sv, nil
 }
 
@@ -114,32 +124,64 @@ type App struct {
 	logger *log.Logger
 }
 
-func New(ctx context.Context, opt *Option) (*App, error) {
+type appOptions struct {
+	config *Config
+	loader *configLoader
+	logger *log.Logger
+}
+
+type AppOption func(*appOptions)
+
+func WithConfig(c *Config) AppOption {
+	return func(o *appOptions) {
+		o.config = c
+	}
+}
+
+func WithConfigLoader(extstr, extcode map[string]string) AppOption {
+	return func(o *appOptions) {
+		o.loader = newConfigLoader(extstr, extcode)
+	}
+}
+
+func WithLogger(l *log.Logger) AppOption {
+	return func(o *appOptions) {
+		o.logger = l
+	}
+}
+
+func New(ctx context.Context, opt *CLIOptions, newAppOptions ...AppOption) (*App, error) {
 	opt.resolveConfigFilePath()
-	loader := newConfigLoader(opt.ExtStr, opt.ExtCode)
-	var (
-		conf *Config
-		err  error
-	)
-	if opt.InitOption != nil {
-		conf, err = opt.InitOption.NewConfig(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("failed to initialize config: %w", err)
-		}
+
+	appOpts := appOptions{
+		loader: newConfigLoader(opt.ExtStr, opt.ExtCode),
+		logger: newLogger(),
+	}
+	for _, fn := range newAppOptions {
+		fn(&appOpts)
+	}
+
+	// set log level
+	if opt.Debug {
+		appOpts.logger.SetOutput(newLogFilter(os.Stderr, "DEBUG"))
 	} else {
-		conf, err = loader.Load(ctx, opt.ConfigFilePath, Version)
-		if err != nil {
+		appOpts.logger.SetOutput(newLogFilter(os.Stderr, "INFO"))
+	}
+	Log("[INFO] ecspresso version: %s", Version)
+
+	// load config file
+	if appOpts.config == nil {
+		if config, err := appOpts.loader.Load(ctx, opt.ConfigFilePath, Version); err != nil {
 			return nil, fmt.Errorf("failed to load config file %s: %w", opt.ConfigFilePath, err)
+		} else {
+			appOpts.config = config
 		}
 	}
+	conf := appOpts.config
+	conf.OverrideByCLIOptions(opt)
 	conf.AssumeRole(opt.AssumeRoleARN)
 
-	logger := newLogger()
-	if opt.Debug {
-		logger.SetOutput(newLogFilter(os.Stderr, "DEBUG"))
-	} else {
-		logger.SetOutput(newLogFilter(os.Stderr, "INFO"))
-	}
+	// new app
 	d := &App{
 		Service: conf.Service,
 		Cluster: conf.Cluster,
@@ -151,12 +193,13 @@ func New(ctx context.Context, opt *Option) (*App, error) {
 		iam:         iam.NewFromConfig(conf.awsv2Config),
 		elbv2:       elasticloadbalancingv2.NewFromConfig(conf.awsv2Config),
 		sd:          servicediscovery.NewFromConfig(conf.awsv2Config),
-
-		config: conf,
-		loader: loader,
-		logger: logger,
+		loader:      appOpts.loader,
+		config:      appOpts.config,
+		logger:      appOpts.logger,
 	}
+
 	d.Log("[DEBUG] config file path: %s", opt.ConfigFilePath)
+	d.Log("[DEBUG] timeout: %s", d.config.Timeout)
 	return d, nil
 }
 
@@ -174,36 +217,6 @@ func (d *App) Start(ctx context.Context) (context.Context, context.CancelFunc) {
 	} else {
 		return ctx, func() {}
 	}
-}
-
-type Option struct {
-	InitOption     *InitOption
-	ConfigFilePath string
-	Debug          bool
-	ExtStr         map[string]string
-	ExtCode        map[string]string
-	AssumeRoleARN  string
-}
-
-func (opt *Option) resolveConfigFilePath() (path string) {
-	path = DefaultConfigFilePath
-	defer func() {
-		opt.ConfigFilePath = path
-		if opt.InitOption != nil {
-			opt.InitOption.ConfigFilePath = &path
-		}
-	}()
-	if opt.ConfigFilePath != "" && opt.ConfigFilePath != DefaultConfigFilePath {
-		path = opt.ConfigFilePath
-		return
-	}
-	for _, ext := range []string{ymlExt, yamlExt, jsonExt, jsonnetExt} {
-		if _, err := os.Stat("ecspresso" + ext); err == nil {
-			path = "ecspresso" + ext
-			return
-		}
-	}
-	return
 }
 
 func (d *App) DescribeServicesInput() *ecs.DescribeServicesInput {
@@ -466,7 +479,7 @@ func (d *App) LoadTaskDefinition(path string) (*TaskDefinitionInput, error) {
 		src = c.TaskDefinition
 	}
 	var td TaskDefinitionInput
-	if err := d.UnmarshalJSONForStruct(src, &td, path); err != nil {
+	if err := UnmarshalJSONForStruct(src, &td, path); err != nil {
 		return nil, fmt.Errorf("failed to load task definition %s: %w", path, err)
 	}
 	if len(td.Tags) == 0 {
@@ -537,8 +550,5 @@ func (d *App) GetLogInfo(task *types.Task, c *types.ContainerDefinition) (string
 }
 
 func (d *App) FilterCommand() string {
-	if fc := os.Getenv(FilterCommandEnv); fc != "" {
-		return fc
-	}
 	return d.config.FilterCommand
 }
