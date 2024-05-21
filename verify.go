@@ -556,12 +556,18 @@ func (d *App) verifyContainer(ctx context.Context, c *types.ContainerDefinition,
 	if err != nil {
 		return err
 	}
-	for _, secret := range c.Secrets {
-		name := fmt.Sprintf("Secret %s[%s]", *secret.Name, *secret.ValueFrom)
-		err := verifyResource(ctx, name, func(ctx context.Context) error {
+	for i, secret := range c.Secrets {
+		name := aws.ToString(secret.Name)
+		if name == "" {
+			return fmt.Errorf("secrets[%d] name is missing", i)
+		}
+		valueFrom := aws.ToString(secret.ValueFrom)
+		if valueFrom == "" {
+			return fmt.Errorf("secrets[%d] %s valueFrom is missing", i, name)
+		}
+		if err := verifyResource(ctx, fmt.Sprintf("Secret %s[%s]", name, valueFrom), func(ctx context.Context) error {
 			return d.verifier.existsSecretValue(ctx, *secret.ValueFrom)
-		})
-		if err != nil {
+		}); err != nil {
 			return err
 		}
 	}
