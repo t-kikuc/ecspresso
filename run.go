@@ -252,7 +252,7 @@ func (d *App) taskDefinitionArnForRun(ctx context.Context, opt RunOption) (strin
 		if err != nil {
 			return "", err
 		}
-		d.Log("Revision is not specified. Use latest task definition family" + family)
+		d.Log("Revision is not specified. Use latest task definition family " + family)
 		latestTdArn, err := d.findLatestTaskDefinitionArn(ctx, family)
 		if err != nil {
 			return "", err
@@ -266,7 +266,7 @@ func (d *App) taskDefinitionArnForRun(ctx context.Context, opt RunOption) (strin
 		if rev != "" {
 			return fmt.Sprintf("%s:%s", family, rev), nil
 		}
-		d.Log("Revision is not specified. Use latest task definition family" + family)
+		d.Log("Revision is not specified. Use latest task definition family " + family)
 		latestTdArn, err := d.findLatestTaskDefinitionArn(ctx, family)
 		if err != nil {
 			return "", err
