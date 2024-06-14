@@ -6,20 +6,22 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"sync"
 	"text/template"
 
 	"github.com/fujiwara/cfn-lookup/cfn"
+	"github.com/fujiwara/ssm-lookup/ssm"
 	"github.com/fujiwara/tfstate-lookup/tfstate"
+	"github.com/google/go-jsonnet"
 	"github.com/kayac/ecspresso/v2/secretsmanager"
-	"github.com/kayac/ecspresso/v2/ssm"
 	"github.com/samber/lo"
 )
 
 var defaultPluginNames = []string{"ssm", "secretsmanager"}
 
 type ConfigPlugin struct {
-	Name       string                 `yaml:"name" json:"name"`
-	Config     map[string]interface{} `yaml:"config" json:"config"`
+	Name       string                 `yaml:"name" json:"name,omitempty"`
+	Config     map[string]interface{} `yaml:"config" json:"config,omitempty"`
 	FuncPrefix string                 `yaml:"func_prefix,omitempty" json:"func_prefix,omitempty"`
 }
 
@@ -57,6 +59,23 @@ func (p ConfigPlugin) AppendFuncMap(c *Config, funcMap template.FuncMap) error {
 	return nil
 }
 
+func (p ConfigPlugin) AppendJsonnetNativeFuncs(c *Config, funcs []*jsonnet.NativeFunction) error {
+	for _, f := range funcs {
+		f.Name = p.FuncPrefix + f.Name
+		for _, appendedFuncs := range c.jsonnetNativeFuncs {
+			if appendedFuncs.Name == f.Name {
+				if lo.Contains(defaultPluginNames, p.Name) {
+					Log("[DEBUG] jsonnet native function %s already exists by default plugins. skip", f.Name)
+					continue
+				}
+				return fmt.Errorf("jsonnet native function %s already exists. set func_prefix to %s plugin", f.Name, p.Name)
+			}
+		}
+		c.jsonnetNativeFuncs = append(c.jsonnetNativeFuncs, f)
+	}
+	return nil
+}
+
 func setupPluginTFState(ctx context.Context, p ConfigPlugin, c *Config) error {
 	var loc string
 	if p.Config["path"] != nil {
@@ -77,33 +96,51 @@ func setupPluginTFState(ctx context.Context, p ConfigPlugin, c *Config) error {
 	} else {
 		return errors.New("tfstate plugin requires path or url for tfstate location")
 	}
-	funcs, err := tfstate.FuncMap(ctx, loc)
+
+	lookup, err := tfstate.ReadURL(ctx, loc)
 	if err != nil {
 		return err
 	}
-	return p.AppendFuncMap(c, funcs)
+	if err := p.AppendFuncMap(c, lookup.FuncMap(ctx)); err != nil {
+		return err
+	}
+	if err := p.AppendJsonnetNativeFuncs(c, lookup.JsonnetNativeFuncs(ctx)); err != nil {
+		return err
+	}
+	return nil
 }
 
 func setupPluginCFn(ctx context.Context, p ConfigPlugin, c *Config) error {
-	funcs, err := cfn.FuncMap(ctx, c.awsv2Config)
-	if err != nil {
+	cache := sync.Map{}
+	lookup := cfn.New(c.awsv2Config, &cache)
+	if err := p.AppendFuncMap(c, lookup.FuncMap(ctx)); err != nil {
 		return err
 	}
-	return p.AppendFuncMap(c, funcs)
+	if err := p.AppendJsonnetNativeFuncs(c, lookup.JsonnetNativeFuncs(ctx)); err != nil {
+		return err
+	}
+	return nil
 }
 
 func setupPluginSSM(ctx context.Context, p ConfigPlugin, c *Config) error {
-	funcs, err := ssm.FuncMap(ctx, c.awsv2Config)
-	if err != nil {
+	cache := sync.Map{}
+	lookup := ssm.New(c.awsv2Config, &cache)
+	if err := p.AppendFuncMap(c, lookup.FuncMap(ctx)); err != nil {
 		return err
 	}
-	return p.AppendFuncMap(c, funcs)
+	if err := p.AppendJsonnetNativeFuncs(c, lookup.JsonnetNativeFuncs(ctx)); err != nil {
+		return err
+	}
+	return nil
 }
 
 func setupPluginSecretsManager(ctx context.Context, p ConfigPlugin, c *Config) error {
-	funcs, err := secretsmanager.FuncMap(ctx, c.awsv2Config)
-	if err != nil {
+	lookup := secretsmanager.NewApp(c.awsv2Config)
+	if err := p.AppendFuncMap(c, lookup.FuncMap(ctx)); err != nil {
 		return err
 	}
-	return p.AppendFuncMap(c, funcs)
+	if err := p.AppendJsonnetNativeFuncs(c, lookup.JsonnetNativeFuncs(ctx)); err != nil {
+		return err
+	}
+	return nil
 }

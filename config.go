@@ -38,6 +38,9 @@ func newConfigLoader(extStr, extCode map[string]string) *configLoader {
 	for k, v := range extCode {
 		vm.ExtCode(k, v)
 	}
+	for _, f := range DefaultJsonnetNativeFuncs {
+		vm.NativeFunction(f)
+	}
 	return &configLoader{
 		Loader: goConfig.New(),
 		VM:     vm,
@@ -60,6 +63,7 @@ type Config struct {
 
 	path               string
 	templateFuncs      []template.FuncMap
+	jsonnetNativeFuncs []*jsonnet.NativeFunction
 	dir                string
 	versionConstraints goVersion.Constraints
 	awsv2Config        aws.Config
@@ -108,6 +112,9 @@ func (l *configLoader) Load(ctx context.Context, path string, version string) (*
 	}
 	for _, f := range conf.templateFuncs {
 		l.Funcs(f)
+	}
+	for _, f := range conf.jsonnetNativeFuncs {
+		l.VM.NativeFunction(f)
 	}
 	return conf, nil
 }
