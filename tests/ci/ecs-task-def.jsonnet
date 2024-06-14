@@ -1,4 +1,9 @@
-local isCodeDeploy = std.extVar('DEPLOYMENT_CONTROLLER') == 'CODE_DEPLOY';
+local env = std.native('env');
+local must_env = std.native('must_env');
+local ssm = std.native('ssm');
+local tfstate = std.native('local_tfstate');
+local secretsmanager_arn = std.native('secretsmanager_arn');
+local isCodeDeploy = env('DEPLOYMENT_CONTROLLER', 'ECS') == 'CODE_DEPLOY';
 {
   containerDefinitions: [
     {
@@ -9,12 +14,24 @@ local isCodeDeploy = std.extVar('DEPLOYMENT_CONTROLLER') == 'CODE_DEPLOY';
           value: '{{ ssm `/ecspresso-test/foo` }}',
         },
         {
+          name: 'FOO_ENV_FUNC',
+          value: ssm('/ecspresso-test/foo'),
+        },
+        {
+          name: 'OUTPUT_FOO',
+          value: tfstate('output.foo'),
+        },
+        {
           name: 'BAZ_ARN',
           value: '{{ secretsmanager_arn `ecspresso-test/baz` }}',
         },
+        {
+          name: 'BAZ_ARN_FUNC',
+          value: secretsmanager_arn('ecspresso-test/baz'),
+        },
       ],
       essential: true,
-      image: 'nginx:{{ env `NGINX_VERSION` `latest` }}',
+      image: 'nginx:' + env('NGINX_VERSION', 'latest'),
       logConfiguration: {
         logDriver: 'awslogs',
         options: {
@@ -40,7 +57,7 @@ local isCodeDeploy = std.extVar('DEPLOYMENT_CONTROLLER') == 'CODE_DEPLOY';
         },
         {
           name: 'BAR',
-          valueFrom: 'arn:aws:ssm:ap-northeast-1:{{must_env `AWS_ACCOUNT_ID`}}:parameter/ecspresso-test/bar',
+          valueFrom: 'arn:aws:ssm:ap-northeast-1:%s:parameter/ecspresso-test/bar' % must_env('AWS_ACCOUNT_ID'),
         },
         {
           name: 'BAZ',

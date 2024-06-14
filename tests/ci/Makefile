@@ -6,7 +6,7 @@ export SERVICE := nginx
 export NOW := $(shell date +%Y%m%d%H%M%S)
 export CLIENT_TOKEN := $(shell uuidgen)
 export DEPLOYMENT_CONTROLLER ?= ECS
-ECSPRESSO := ecspresso --envfile envfile --ext-str DEPLOYMENT_CONTROLLER=$(DEPLOYMENT_CONTROLLER)
+ECSPRESSO := ecspresso --envfile envfile
 
 help:
 

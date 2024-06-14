@@ -1,5 +1,6 @@
+local must_env = std.native('must_env');
 {
-  region: '{{ must_env `AWS_REGION` }}',
+  region: must_env('AWS_REGION'),
   cluster: 'default',
   service: 'test',
   service_definition: 'ecs-service-def.json',
