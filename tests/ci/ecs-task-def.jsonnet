@@ -61,7 +61,7 @@ local isCodeDeploy = env('DEPLOYMENT_CONTROLLER', 'ECS') == 'CODE_DEPLOY';
         },
         {
           name: 'BAZ',
-          valueFrom: 'arn:aws:secretsmanager:ap-northeast-1:{{must_env `AWS_ACCOUNT_ID`}}:secret:ecspresso-test/baz-06XQOH',
+          valueFrom: secretsmanager_arn('ecspresso-test/baz'),
         },
       ],
       volumesFrom: [],
