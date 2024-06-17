@@ -38,7 +38,7 @@ func newConfigLoader(extStr, extCode map[string]string) *configLoader {
 	for k, v := range extCode {
 		vm.ExtCode(k, v)
 	}
-	for _, f := range DefaultJsonnetNativeFuncs {
+	for _, f := range DefaultJsonnetNativeFuncs() {
 		vm.NativeFunction(f)
 	}
 	return &configLoader{
