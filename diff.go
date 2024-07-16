@@ -183,6 +183,7 @@ func tdToTaskDefinitionInput(td *TaskDefinition, tdTags []types.Tag) *TaskDefini
 		Memory:                  td.Memory,
 		NetworkMode:             td.NetworkMode,
 		PlacementConstraints:    td.PlacementConstraints,
+		PidMode:                 td.PidMode,
 		RequiresCompatibilities: td.RequiresCompatibilities,
 		RuntimePlatform:         td.RuntimePlatform,
 		TaskRoleArn:             td.TaskRoleArn,
