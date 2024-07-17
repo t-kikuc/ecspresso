@@ -180,6 +180,7 @@ func tdToTaskDefinitionInput(td *TaskDefinition, tdTags []types.Tag) *TaskDefini
 		EphemeralStorage:        td.EphemeralStorage,
 		ExecutionRoleArn:        td.ExecutionRoleArn,
 		Family:                  td.Family,
+		IpcMode:                 td.IpcMode,
 		Memory:                  td.Memory,
 		NetworkMode:             td.NetworkMode,
 		PlacementConstraints:    td.PlacementConstraints,
