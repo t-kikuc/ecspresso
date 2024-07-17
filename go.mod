@@ -20,7 +20,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/servicediscovery v1.30.1
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.51.1
 	github.com/aws/aws-sdk-go-v2/service/sts v1.29.1
-	github.com/aws/smithy-go v1.20.2
+	github.com/aws/smithy-go v1.20.3
 	github.com/fatih/color v1.16.0
 	github.com/fujiwara/cfn-lookup v1.0.0
 	github.com/fujiwara/ecsta v0.4.5
