@@ -260,6 +260,8 @@ Configuration files and task/service definition files are read by [go-config](ht
 
 ecspresso uses the [text/template standard package in Go](https://pkg.go.dev/text/template) to render template files, and parses as YAML/JSON/Jsonnet. By default, ecspresso provides the following as template functions.
 
+If you are using Jsonnet, consider using ecspresso's [Jsonnet functions](#jsonnet-functions) instead of ecspresso's template functions.
+
 ### `env`
 
 ```
@@ -470,6 +472,8 @@ ecspresso v1.7 or later can use [Jsonnet](https://jsonnet.org/) file format for 
 
 v2.0 or later can use Jsonnet for configuration file too.
 
+v2.4 or later can use [Jsonnet functions](#jsonnet-functions).
+
 If the file extension is .jsonnet, ecspresso will process Jsonnet first, convert it to JSON, and then load it.
 
 ```jsonnet
@@ -495,6 +499,30 @@ $ ecspresso --ext-str Foo=foo --ext-code "Bar=1+1" ...
   bar: std.extVar('Bar'), // = 2
 }
 ```
+
+### Jsonnet functions
+
+v2.4 or later supports Jsonnet native functions in Jsonnet files.
+
+- At first, define `local func = std.native('func');` in Jsonnet files.
+- Then, you can use `func()` in Jsonnet files.
+
+#### `env`, `must_env`
+
+`env` and `must_env` functions are the same as template functions in JSON and YAML files.
+
+```jsonnet
+local env = std.native('env');
+local must_env = std.native('must_env');
+{
+  foo: env('FOO', 'default value'),
+  bar: must_env('BAR'),
+}
+```
+
+#### `json_escape`
+
+TODO
 
 ### Deploy to Fargate
 
@@ -779,7 +807,7 @@ $ ecspresso exec --port-forward -L 8080:example.com:80
 
 ## Plugins
 
-ecspresso has some plugins to extend template functions.
+ecspresso has some plugins to extend template functions and Jsonnet native functions.
 
 ### tfstate
 
@@ -823,6 +851,28 @@ ecs-service-def.json
 {{ tfstatef `aws_subnet.ecs['%s'].id` (must_env `SERVICE`) }}
 ```
 
+#### tfstate Jsonnet function
+
+`tfstate` Jsonnet function is the same as template function in JSON and YAML files.
+`tfstatef` Jsonnet function is not provided. Use `std.format()` or interpolation instead.
+
+```jsonnet
+local tfstate = std.native('tfstate');
+{
+  networkConfiguration: {
+    awsvpcConfiguration: {
+      subnets: [
+        tfstate('aws_subnet.private["%s"].id' % 'az-z'),
+        tfstate(std.format('aws_subnet.private["%s"].id', ['az-b'])),
+      ],
+      securityGroups: [
+        tfstate('data.aws_security_group.default.id'),
+      ]
+    }
+  }
+}
+```
+
 #### Supported tfstate URL format
 
 - Local file `file://path/to/terraform.tfstate`
@@ -858,6 +908,17 @@ So in templates, functions are called with prefixes.
 [
   "{{ first_tfstate `aws_s3_bucket.main.arn` }}",
   "{{ second_tfstate `aws_s3_bucket.main.arn` }}"
+]
+```
+
+Jsonnet function for multiple tfstate support is available by `func_prefix`.
+
+```jsonnet
+local first_tfstate = std.native('first_tfstate'); // func_prefix: first_
+local second_tfstate = std.native('second_tfstate'); // func_prefix: second_
+[
+  first_tfstate('aws_s3_bucket.main.arn'),
+  second_tfstate('aws_s3_bucket.main.arn'),
 ]
 ```
 
@@ -909,6 +970,24 @@ ecs-service-def.json
 }
 ```
 
+#### Jsonnet functions `cfn_output`, `cfn_export`
+
+`cfn_output` and `cfn_export` functions are the same as template functions.
+
+```jsonnet
+local cfn_output = std.native('cfn_output');
+local cfn_export = std.native('cfn_export');
+{
+  subnets: [
+    cfn_output('ECS-ecspresso', 'SubnetAz1'),
+    cfn_output('ECS-ecspresso', 'SubnetAz2'),
+  ],
+  securityGroups: [
+    cfn_export('ECS-ecspresso-EcsSecurityGroupId'),
+  ],
+}
+```
+
 ### Lookups ssm parameter store
 
 The template function `ssm` reads parameters from AWS Systems Manager(SSM) Parameter Store.
@@ -939,6 +1018,20 @@ will be rendered into this.
 }
 ```
 
+#### Jsonnet functions `ssm`, `ssm_list`
+
+`ssm` and `ssm_list` functions are the same as template function.
+
+```jsonnet
+local ssm = std.native('ssm');
+local ssm_list = std.native('ssm_list');
+{
+  string: ssm('/path/to/string'),
+  stringlist: ssm_list('/path/to/stringlist', 1),
+  securestring: ssm('/path/to/securestring'),
+}
+```
+
 ### Resolve secretsmanager secret ARN
 
 The template function `secretsmanager_arn` resolves secretsmanager secret ARN by secret name.
@@ -961,6 +1054,22 @@ will be rendered into this.
       "valueFrom": "arn:aws:secretsmanager:ap-northeast-1:123456789012:secret:foo-06XQOH"
     }
   ]
+```
+
+#### Jsonnet function `secretsmanager_arn`
+
+`secretsmanager_arn` function is the same as template function.
+
+```jsonnet
+local secretsmanager_arn = std.native('secretsmanager_arn');
+{
+  secrets: [
+    {
+      name: "FOO",
+      valueFrom: secretsmanager_arn('foo'),
+    }
+  ]
+}
 ```
 
 ## LICENSE
