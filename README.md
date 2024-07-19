@@ -524,6 +524,8 @@ local must_env = std.native('must_env');
 
 TODO
 
+Other plugin-provided functions are available in Jsonnet files. See [Plugins](#plugins) section.
+
 ### Deploy to Fargate
 
 If you want to deploy services to Fargate, task definitions and service definitions require some settings.
@@ -1020,7 +1022,7 @@ will be rendered into this.
 
 #### Jsonnet functions `ssm`, `ssm_list`
 
-`ssm` and `ssm_list` functions are the same as template function.
+`ssm` function is the same as template function. For string list parameters, use `ssm_list` to specify the index.
 
 ```jsonnet
 local ssm = std.native('ssm');
