@@ -5,6 +5,10 @@ service_definition: ecs-service-def.jsonnet
 task_definition: ecs-task-def.jsonnet
 timeout: 20m0s
 plugins:
+  - name: tfstate
+    config:
+      url: "./terraform.tfstate"
+    func_prefix: local_
 {{ if (env `TFSTATE_BUCKET` ``) }}
   - name: tfstate
     config:
