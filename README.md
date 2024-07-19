@@ -517,7 +517,7 @@ The Jsonnet functions are evaluated at the time of rendering Jsonnet files. So y
 
 `env` and `must_env` functions are the same as template functions in JSON and YAML files.
 
-Unlike template functions, Jsonnet functions can render non-string values from environment variables by `std.parseInt()`, `std.parseBool()`, etc.
+Unlike template functions, Jsonnet functions can render non-string values from environment variables by `std.parseInt()`, `std.parseJson()`, etc.
 
 ```jsonnet
 local env = std.native('env');
@@ -526,7 +526,7 @@ local must_env = std.native('must_env');
   foo: env('FOO', 'default value'),
   bar: must_env('BAR'),
   bazNumber: std.parseInt(env('BAZ_NUMBER', '0')),
-  booBool: std.parseBool(env('BOO_BOOL', 'false')),
+  booBool: std.parseJson(env('BOO_BOOL', 'false')),
 }
 ```
 
