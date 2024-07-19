@@ -67,7 +67,7 @@ func (a *App) JsonnetNativeFuncs(ctx context.Context) []*jsonnet.NativeFunction 
 		{
 			Name:   "secretsmanager_arn",
 			Params: []ast.Identifier{"id"},
-			Func: func(args []interface{}) (interface{}, error) {
+			Func: func(args []any) (any, error) {
 				id, ok := args[0].(string)
 				if !ok {
 					return nil, fmt.Errorf("secretsmanager_arn: id must be string")

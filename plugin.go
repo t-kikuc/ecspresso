@@ -20,9 +20,9 @@ import (
 var defaultPluginNames = []string{"ssm", "secretsmanager"}
 
 type ConfigPlugin struct {
-	Name       string                 `yaml:"name" json:"name,omitempty"`
-	Config     map[string]interface{} `yaml:"config" json:"config,omitempty"`
-	FuncPrefix string                 `yaml:"func_prefix,omitempty" json:"func_prefix,omitempty"`
+	Name       string         `yaml:"name" json:"name,omitempty"`
+	Config     map[string]any `yaml:"config" json:"config,omitempty"`
+	FuncPrefix string         `yaml:"func_prefix,omitempty" json:"func_prefix,omitempty"`
 }
 
 func (p ConfigPlugin) Setup(ctx context.Context, c *Config) error {

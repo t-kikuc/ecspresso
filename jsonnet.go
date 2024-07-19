@@ -13,7 +13,7 @@ func DefaultJsonnetNativeFuncs() []*jsonnet.NativeFunction {
 		{
 			Name:   "env",
 			Params: []ast.Identifier{"name", "default"},
-			Func: func(args []interface{}) (interface{}, error) {
+			Func: func(args []any) (any, error) {
 				key, ok := args[0].(string)
 				if !ok {
 					return nil, fmt.Errorf("env: name must be a string")
@@ -27,7 +27,7 @@ func DefaultJsonnetNativeFuncs() []*jsonnet.NativeFunction {
 		{
 			Name:   "must_env",
 			Params: []ast.Identifier{"name"},
-			Func: func(args []interface{}) (interface{}, error) {
+			Func: func(args []any) (any, error) {
 				key, ok := args[0].(string)
 				if !ok {
 					return nil, fmt.Errorf("must_env: name must be a string")
