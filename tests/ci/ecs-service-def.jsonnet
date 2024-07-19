@@ -27,7 +27,7 @@ local isCodeDeploy = env('DEPLOYMENT_CONTROLLER', 'ECS') == 'CODE_DEPLOY';
   },
   desiredCount: std.parseInt(env('DESIRED_COUNT', '1')),
   enableECSManagedTags: false,
-  enableExecuteCommand: true,
+  enableExecuteCommand: std.parseJson(env('ENABLE_EXECUTE_COMMAND', 'true')),
   healthCheckGracePeriodSeconds: 0,
   loadBalancers: [
     {
