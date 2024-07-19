@@ -238,9 +238,7 @@ func (d *App) taskDefinitionArnForRun(ctx context.Context, opt RunOption) (strin
 	switch {
 	case *opt.Revision > 0:
 		if opt.LatestTaskDefinition {
-			err := ErrConflictOptions("revision and latest-task-definition are exclusive")
-			// TODO: v2.1 raise error
-			d.Log("[WARNING] %s", err)
+			return "", ErrConflictOptions("revision and latest-task-definition are exclusive")
 		}
 		family, _, err := d.resolveTaskdefinition(ctx)
 		if err != nil {
