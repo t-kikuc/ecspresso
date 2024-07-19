@@ -258,9 +258,11 @@ Configuration files and task/service definition files are read by [go-config](ht
 
 ## Template syntax
 
-ecspresso uses the [text/template standard package in Go](https://pkg.go.dev/text/template) to render template files, and parses as YAML/JSON/Jsonnet. By default, ecspresso provides the following as template functions.
+ecspresso uses the [text/template standard package in Go](https://pkg.go.dev/text/template) to render template files, and parses as YAML or JSON.
 
-If you are using Jsonnet, consider using ecspresso's [Jsonnet functions](#jsonnet-functions) instead of ecspresso's template functions.
+If you use Jsonnet, ecspresso renders Jsonnet files first, then parses them as text/template. So, the template functions can render only string values by `"{{ ... }}"`, because the template function syntax `{{ }}` conflicts with Jsonnet syntax. Consider [Jsonnet functions](#jsonnet-functions) instead of template functions to render non-string values.
+
+By default, ecspresso provides the following as template functions.
 
 ### `env`
 
@@ -506,14 +508,16 @@ $ ecspresso --ext-str Foo=foo --ext-code "Bar=1+1" ...
 
 v2.4 or later supports Jsonnet native functions in Jsonnet files.
 
-- At first, define `local func = std.native('func');` in Jsonnet files.
-- Then, you can use `func()` in Jsonnet files.
+- At first, define `local func = std.native('func');` in a .jsonnet file.
+- Then, you can use the `func()` in the .jsonnet file.
 
-The Jsonnet functions are evaluated at the time of rendering Jsonnet files. So you can avoid the conflict with template functions.
+The Jsonnet functions are evaluated at the time of rendering Jsonnet files. So you can avoid the conflict with template syntax.
 
 #### `env`, `must_env`
 
 `env` and `must_env` functions are the same as template functions in JSON and YAML files.
+
+Unlike template functions, Jsonnet functions can render non-string values from environment variables by `std.parseInt()`, `std.parseBool()`, etc.
 
 ```jsonnet
 local env = std.native('env');
@@ -521,6 +525,8 @@ local must_env = std.native('must_env');
 {
   foo: env('FOO', 'default value'),
   bar: must_env('BAR'),
+  bazNumber: std.parseInt(env('BAZ_NUMBER', '0')),
+  booBool: std.parseBool(env('BOO_BOOL', 'false')),
 }
 ```
 
