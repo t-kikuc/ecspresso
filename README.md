@@ -474,7 +474,9 @@ v2.0 or later can use Jsonnet for configuration file too.
 
 v2.4 or later can use [Jsonnet functions](#jsonnet-functions).
 
-If the file extension is .jsonnet, ecspresso will process Jsonnet first, convert it to JSON, and then load it.
+If the file extension is .jsonnet, ecspresso will process Jsonnet first, convert it to JSON, and then load it with evaluation template syntax.
+
+If you use the [Template syntax](#template-syntax) in the Jsonnet file, it may cause a syntax error because it conflicts with Jsonnet syntax. In this case, consider to use [Jsonnet functions](#jsonnet-functions).
 
 ```jsonnet
 {
@@ -507,6 +509,8 @@ v2.4 or later supports Jsonnet native functions in Jsonnet files.
 - At first, define `local func = std.native('func');` in Jsonnet files.
 - Then, you can use `func()` in Jsonnet files.
 
+The Jsonnet functions are evaluated at the time of rendering Jsonnet files. So you can avoid the conflict with template functions.
+
 #### `env`, `must_env`
 
 `env` and `must_env` functions are the same as template functions in JSON and YAML files.
@@ -520,11 +524,9 @@ local must_env = std.native('must_env');
 }
 ```
 
-#### `json_escape`
+#### Other plugin-provided functions
 
-TODO
-
-Other plugin-provided functions are available in Jsonnet files. See [Plugins](#plugins) section.
+See [Plugins](#plugins) section.
 
 ### Deploy to Fargate
 
@@ -865,7 +867,7 @@ local tfstate = std.native('tfstate');
     awsvpcConfiguration: {
       subnets: [
         tfstate('aws_subnet.private["%s"].id' % 'az-z'),
-        tfstate(std.format('aws_subnet.private["%s"].id', ['az-b'])),
+        tfstate(std.format('aws_subnet.private["%s"].id', 'az-b')),
       ],
       securityGroups: [
         tfstate('data.aws_security_group.default.id'),
