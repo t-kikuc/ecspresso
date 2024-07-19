@@ -117,7 +117,7 @@ func (v *verifier) existsSecretValue(ctx context.Context, from string) error {
 	} else {
 		name = from
 	}
-	_, err := v.ssm.GetParameters(ctx, &ssm.GetParametersInput{
+	out, err := v.ssm.GetParameters(ctx, &ssm.GetParametersInput{
 		Names:          []string{name},
 		WithDecryption: aws.Bool(true),
 	})
@@ -137,6 +137,9 @@ func (v *verifier) existsSecretValue(ctx context.Context, from string) error {
 		} else {
 			return fmt.Errorf("failed to get ssm parameters %s: %w", name, err)
 		}
+	}
+	if len(out.Parameters) == 0 || len(out.InvalidParameters) > 0 {
+		return fmt.Errorf("ssm parameter %s is not found", name)
 	}
 	return nil
 }

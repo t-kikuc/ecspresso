@@ -14,10 +14,10 @@ test:
 	go test -race ./...
 
 packages:
-	goreleaser build --skip-validate --rm-dist
+	goreleaser build --skip-validate --clean
 
 packages-snapshot:
-	goreleaser build --skip-validate --rm-dist --snapshot
+	goreleaser build --skip-validate --clean --snapshot
 
 clean:
 	rm -f cmd/ecspresso/ecspresso
