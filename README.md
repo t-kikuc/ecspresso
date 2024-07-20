@@ -127,7 +127,7 @@ Flags:
       --assume-role-arn=""        the ARN of the role to assume ($ECSPRESSO_ASSUME_ROLE_ARN)
       --timeout=TIMEOUT           timeout. Override in a configuration file ($ECSPRESSO_TIMEOUT).
       --filter-command=STRING     filter command ($ECSPRESSO_FILTER_COMMAND)
-      --no-color                  disables colorized output
+      --[no-]color                enable colorized output ($ECSPRESSO_COLOR)
 
 Commands:
   appspec
