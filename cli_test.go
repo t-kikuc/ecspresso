@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/fatih/color"
 	"github.com/google/go-cmp/cmp"
 	"github.com/kayac/ecspresso/v2"
 )
@@ -684,6 +685,30 @@ var cliTests = []struct {
 		sub:  "diff",
 		subOption: &ecspresso.DiffOption{
 			Unified: false,
+		},
+	},
+	{
+		args: []string{"diff", "--no-color"},
+		sub:  "diff",
+		subOption: &ecspresso.DiffOption{
+			Unified: true,
+		},
+		fn: func(t *testing.T, o any) {
+			if color.NoColor != true {
+				t.Errorf("unexpected color.NoColor expected: %v, got: %v", true, color.NoColor)
+			}
+		},
+	},
+	{
+		args: []string{"diff", "--color"},
+		sub:  "diff",
+		subOption: &ecspresso.DiffOption{
+			Unified: true,
+		},
+		fn: func(t *testing.T, o any) {
+			if color.NoColor == true {
+				t.Errorf("unexpected color.NoColor expected: %v, got: %v", false, color.NoColor)
+			}
 		},
 	},
 	{
