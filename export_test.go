@@ -2,6 +2,7 @@ package ecspresso
 
 import (
 	"context"
+	"io"
 	"log"
 
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -48,4 +49,8 @@ func ResetAWSV2ConfigLoadOptionsFunc() {
 
 func (d *App) TaskDefinitionArnForRun(ctx context.Context, opt RunOption) (string, error) {
 	return d.taskDefinitionArnForRun(ctx, opt)
+}
+
+func (opt *DiffOption) SetWriter(w io.Writer) {
+	opt.w = w
 }
