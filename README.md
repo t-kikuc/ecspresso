@@ -705,6 +705,19 @@ $ ecspresso diff
          "options": {
 ```
 
+v2.4 or later, `ecspresso diff --external` can invoke an external command. You can use the "diff" command you like.
+
+For example, use [difftastic](https://github.com/Wilfred/difftastic) (`difft`) command.
+
+```console
+$ ecspresso diff --external "difft --color=always"
+
+$ ECSPRESSO_DIFF_COMMAND="difft --color=always" ecspresso diff
+```
+
+The command should exit with status 0. If it exits with a non-zero status when two files differ (for example, `diff(1)`), you need to write a wrapper command.
+
+
 #### verify
 
 Verify resources related with service/task definitions.
