@@ -12,3 +12,6 @@ plugins:
   - name: tfstate
     config:
       path: '{{ must_env "PWD" }}/tests/terraform.tfstate'
+ignore:
+  tags:
+    - ecspresso:ignore

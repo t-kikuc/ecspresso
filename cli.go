@@ -143,7 +143,7 @@ func dispatchCLI(ctx context.Context, sub string, usage func(), opts *CLIOptions
 	case "deregister":
 		return app.Deregister(ctx, *opts.Deregister)
 	case "revisions":
-		return app.Revesions(ctx, *opts.Revisions)
+		return app.Revisions(ctx, *opts.Revisions)
 	case "init":
 		return app.Init(ctx, *opts.Init)
 	case "diff":

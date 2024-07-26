@@ -6,6 +6,7 @@ import (
 	"log"
 
 	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/ecs/types"
 )
 
 var (
@@ -53,4 +54,8 @@ func (d *App) TaskDefinitionArnForRun(ctx context.Context, opt RunOption) (strin
 
 func (opt *DiffOption) SetWriter(w io.Writer) {
 	opt.w = w
+}
+
+func (i *ConfigIgnore) FilterTags(tags []types.Tag) []types.Tag {
+	return i.filterTags(tags)
 }

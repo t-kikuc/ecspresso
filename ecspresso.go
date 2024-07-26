@@ -260,7 +260,14 @@ func (d *App) DescribeService(ctx context.Context) (*Service, error) {
 	default:
 		d.Log("[DEBUG] service %s is %s", d.Service, status)
 	}
-	return d.newServiceFromTypes(ctx, out.Services[0])
+	sv, err := d.newServiceFromTypes(ctx, out.Services[0])
+	if err != nil {
+		return nil, err
+	}
+	if err := d.config.Ignore.ApplyService(sv); err != nil {
+		return nil, fmt.Errorf("failed to apply ignore: %w", err)
+	}
+	return sv, nil
 }
 
 func (d *App) DescribeServiceStatus(ctx context.Context, events int) (*Service, error) {
@@ -395,7 +402,11 @@ func (d *App) DescribeTaskDefinition(ctx context.Context, tdArn string) (*TaskDe
 	if err != nil {
 		return nil, fmt.Errorf("failed to describe task definition: %w", err)
 	}
-	return tdToTaskDefinitionInput(out.TaskDefinition, out.Tags), nil
+	in := tdToTaskDefinitionInput(out.TaskDefinition, out.Tags)
+	if err := d.config.Ignore.ApplyTaskDefinitionInput(in); err != nil {
+		return nil, fmt.Errorf("failed to apply ignore: %w", err)
+	}
+	return in, nil
 }
 
 func (d *App) GetLogEvents(ctx context.Context, logGroup string, logStream string, startedAt time.Time, nextToken *string) (*string, error) {
@@ -485,6 +496,10 @@ func (d *App) LoadTaskDefinition(path string) (*TaskDefinitionInput, error) {
 	if len(td.Tags) == 0 {
 		td.Tags = nil
 	}
+	if err := d.config.Ignore.ApplyTaskDefinitionInput(&td); err != nil {
+		return nil, fmt.Errorf("failed to apply ignore: %w", err)
+	}
+
 	return &td, nil
 }
 
@@ -530,6 +545,10 @@ func (d *App) LoadServiceDefinition(path string) (*Service, error) {
 		d.Log("[DEBUG] Loaded DesiredCount: nil (-1)")
 	} else {
 		d.Log("[DEBUG] Loaded DesiredCount: %d", *sv.DesiredCount)
+	}
+
+	if err := d.config.Ignore.ApplyService(&sv); err != nil {
+		return nil, fmt.Errorf("failed to apply ignore: %w", err)
 	}
 	return &sv, nil
 }

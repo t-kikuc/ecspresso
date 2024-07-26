@@ -11,11 +11,13 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
+	"github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/google/go-jsonnet"
 	goVersion "github.com/hashicorp/go-version"
 	"github.com/kayac/ecspresso/v2/appspec"
 	goConfig "github.com/kayac/go-config"
+	"github.com/samber/lo"
 )
 
 const (
@@ -60,6 +62,7 @@ type Config struct {
 	FilterCommand         string            `yaml:"filter_command,omitempty" json:"filter_command,omitempty"`
 	Timeout               *Duration         `yaml:"timeout,omitempty" json:"timeout,omitempty"`
 	CodeDeploy            *ConfigCodeDeploy `yaml:"codedeploy,omitempty" json:"codedeploy,omitempty"`
+	Ignore                *ConfigIgnore     `yaml:"ignore,omitempty" json:"ignore,omitempty"`
 
 	path               string
 	templateFuncs      []template.FuncMap
@@ -228,4 +231,27 @@ func NewDefaultConfig() *Config {
 		Region:  os.Getenv("AWS_REGION"),
 		Timeout: &Duration{DefaultTimeout},
 	}
+}
+
+type ConfigIgnore struct {
+	Tags []string `yaml:"tags,omitempty" json:"tags,omitempty"`
+}
+
+func (i *ConfigIgnore) filterTags(tags []types.Tag) []types.Tag {
+	if i == nil || len(i.Tags) == 0 {
+		return tags
+	}
+	return lo.Filter(tags, func(tag types.Tag, _ int) bool {
+		return !lo.Contains(i.Tags, aws.ToString(tag.Key))
+	})
+}
+
+func (i *ConfigIgnore) ApplyService(sv *Service) error {
+	sv.Tags = i.filterTags(sv.Tags)
+	return nil
+}
+
+func (i *ConfigIgnore) ApplyTaskDefinitionInput(in *TaskDefinitionInput) error {
+	in.Tags = i.filterTags(in.Tags)
+	return nil
 }
