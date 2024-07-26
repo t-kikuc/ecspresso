@@ -7,6 +7,7 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/kayac/ecspresso/v2"
 )
 
@@ -841,7 +842,7 @@ func TestParseCLIv2(t *testing.T) {
 				}
 			}
 			if tt.subOption != nil {
-				if diff := cmp.Diff(opt.ForSubCommand(sub), tt.subOption); diff != "" {
+				if diff := cmp.Diff(opt.ForSubCommand(sub), tt.subOption, cmpopts.IgnoreUnexported(ecspresso.DiffOption{})); diff != "" {
 					t.Errorf("unexpected subOption: diff %s", diff)
 				}
 			}

@@ -112,11 +112,11 @@ func (d *App) Deploy(ctx context.Context, opt DeployOption) error {
 			return err
 		}
 		addedTags, updatedTags, deletedTags := CompareTags(sv.Tags, newSv.Tags)
-		ds, err := diffServices(newSv, sv, d.config.ServiceDefinitionPath, true)
+		differ, err := diffServices(ctx, newSv, sv, d.config.ServiceDefinitionPath, &DiffOption{Unified: true, w: os.Stdout})
 		if err != nil {
 			return fmt.Errorf("failed to diff of service definitions: %w", err)
 		}
-		if ds != "" {
+		if differ {
 			if err = d.UpdateServiceAttributes(ctx, newSv, tdArn, opt); err != nil {
 				return err
 			}
