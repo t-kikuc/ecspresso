@@ -243,6 +243,9 @@ cluster: default
 service: myservice
 task_definition: taskdef.json
 timeout: 5m # default 10m
+ignore:
+  tags:
+    - ecspresso:ignore # ignore tags of service and task definition
 ```
 
 `ecspresso deploy` works as below.
