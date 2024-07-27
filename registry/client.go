@@ -128,9 +128,9 @@ func (c *Repository) getAvailability(ctx context.Context, tag string) (*http.Res
 }
 
 func (c *Repository) getManifests(ctx context.Context, tag string) (mediaType string, _ io.ReadCloser, _ error) {
-	retrier := retryPolicy.Start(ctx)
+	retryer := retryPolicy.Start(ctx)
 	var lastErr error
-	for retrier.Continue() {
+	for retryer.Continue() {
 		resp, err := c.fetchManifests(ctx, http.MethodGet, tag)
 		if err == nil && resp.StatusCode == http.StatusOK {
 			mediaType = parseContentType(resp.Header.Get("Content-Type"))
