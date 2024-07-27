@@ -69,7 +69,7 @@ func (revs revisions) OutputTable(w io.Writer) error {
 	return nil
 }
 
-func (d *App) Revesions(ctx context.Context, opt RevisionsOption) error {
+func (d *App) Revisions(ctx context.Context, opt RevisionsOption) error {
 	ctx, cancel := d.Start(ctx)
 	defer cancel()
 

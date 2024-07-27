@@ -79,7 +79,7 @@ func (d *App) Diff(ctx context.Context, opt DiffOption) error {
 		}
 		remoteTaskDefArn = arn
 	}
-	var remoteTd *ecs.RegisterTaskDefinitionInput
+	var remoteTd *TaskDefinitionInput
 	if remoteTaskDefArn != "" {
 		d.Log("[DEBUG] diff task definition compare with %s", remoteTaskDefArn)
 		remoteTd, err = d.DescribeTaskDefinition(ctx, remoteTaskDefArn)

@@ -130,6 +130,10 @@ local isCodeDeploy = env('DEPLOYMENT_CONTROLLER', 'ECS') == 'CODE_DEPLOY';
       key: 'TaskType',
       value: 'ecspresso-test',
     },
+    {
+      key: 'cost-category',
+      value: 'ecspresso-test',
+    },
   ],
   taskRoleArn: 'arn:aws:iam::{{must_env `AWS_ACCOUNT_ID`}}:role/ecsTaskRole',
   volumes: if isCodeDeploy then null else [

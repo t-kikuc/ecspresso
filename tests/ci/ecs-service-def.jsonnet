@@ -65,6 +65,10 @@ local isCodeDeploy = env('DEPLOYMENT_CONTROLLER', 'ECS') == 'CODE_DEPLOY';
       key: 'cluster',
       value: 'ecspresso-test',
     },
+    {
+      key: 'cost-category',
+      value: 'ecspresso-test',
+    },
   ],
   volumeConfigurations: if isCodeDeploy then null else [
     {

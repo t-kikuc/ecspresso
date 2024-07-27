@@ -24,5 +24,15 @@
   "family": "app",
   "requiresCompatibilities": [
     "EC2"
+  ],
+  "tags": [
+    {
+      "key": "Name",
+      "value": "test"
+    },
+    {
+      "key": "ecspresso:ignore",
+      "value": "true"
+    }
   ]
 }

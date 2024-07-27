@@ -25,5 +25,15 @@
       ],
       "assignPublicIp": "ENABLED"
     }
-  }
+  },
+  "tags": [
+    {
+      "key": "Name",
+      "value": "test"
+    },
+    {
+      "key": "ecspresso:ignore",
+      "value": "true"
+    }
+  ]
 }
