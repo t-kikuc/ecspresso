@@ -139,7 +139,7 @@ func (c *Repository) getManifests(ctx context.Context, tag string) (mediaType st
 		switch resp.StatusCode {
 		case http.StatusNotFound, http.StatusUnauthorized:
 			// should not be retried
-			return "", nil, fmt.Errorf("faild to fetch manifests: %s", resp.Status)
+			return "", nil, fmt.Errorf("failed to fetch manifests: %s %d", resp.Status, resp.StatusCode)
 		case http.StatusTooManyRequests:
 			lastErr = ErrPullRateLimitExceeded
 		default:
