@@ -9,7 +9,7 @@ import (
 	"github.com/kayac/ecspresso/v2"
 )
 
-type testJSONStruct = struct {
+type testJSONStruct struct {
 	FooBarBaz string
 	Options   map[string]string
 	Nested    struct {
