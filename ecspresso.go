@@ -37,7 +37,11 @@ var delayForServiceChanged = 3 * time.Second
 var waiterMaxDelay = 15 * time.Second
 var spcIndent = "  "
 
-type TaskDefinition = types.TaskDefinition
+type TaskDefinition types.TaskDefinition
+
+func (td *TaskDefinition) Name() string {
+	return fmt.Sprintf("%s:%d", aws.ToString(td.Family), td.Revision)
+}
 
 type TaskDefinitionInput ecs.RegisterTaskDefinitionInput
 
@@ -47,10 +51,6 @@ func (tdi *TaskDefinitionInput) SetTags(tags []types.Tag) {
 
 func (tdi *TaskDefinitionInput) GetTags() []types.Tag {
 	return tdi.Tags
-}
-
-func taskDefinitionName(t *TaskDefinition) string {
-	return fmt.Sprintf("%s:%d", *t.Family, t.Revision)
 }
 
 type Service struct {
@@ -418,11 +418,12 @@ func (d *App) DescribeTaskDefinition(ctx context.Context, tdArn string) (*TaskDe
 	if err != nil {
 		return nil, fmt.Errorf("failed to describe task definition: %w", err)
 	}
-	in := tdToTaskDefinitionInput(out.TaskDefinition, out.Tags)
-	if err := d.config.Ignore.Apply(in); err != nil {
+	td := TaskDefinition(*out.TaskDefinition)
+	tdi := tdToTaskDefinitionInput(&td, out.Tags)
+	if err := d.config.Ignore.Apply(tdi); err != nil {
 		return nil, fmt.Errorf("failed to apply ignore: %w", err)
 	}
-	return in, nil
+	return tdi, nil
 }
 
 func (d *App) GetLogEvents(ctx context.Context, logGroup string, logStream string, startedAt time.Time, nextToken *string) (*string, error) {
@@ -487,8 +488,9 @@ func (d *App) RegisterTaskDefinition(ctx context.Context, td *TaskDefinitionInpu
 	if err != nil {
 		return nil, fmt.Errorf("failed to register task definition: %w", err)
 	}
-	d.Log("Task definition is registered %s", taskDefinitionName(out.TaskDefinition))
-	return out.TaskDefinition, nil
+	otd := TaskDefinition(*out.TaskDefinition)
+	d.Log("Task definition is registered %s", otd.Name())
+	return &otd, nil
 }
 
 func (d *App) LoadTaskDefinition(path string) (*TaskDefinitionInput, error) {
