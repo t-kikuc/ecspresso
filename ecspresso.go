@@ -39,7 +39,15 @@ var spcIndent = "  "
 
 type TaskDefinition = types.TaskDefinition
 
-type TaskDefinitionInput = ecs.RegisterTaskDefinitionInput
+type TaskDefinitionInput ecs.RegisterTaskDefinitionInput
+
+func (tdi *TaskDefinitionInput) SetTags(tags []types.Tag) {
+	tdi.Tags = tags
+}
+
+func (tdi *TaskDefinitionInput) GetTags() []types.Tag {
+	return tdi.Tags
+}
 
 func taskDefinitionName(t *TaskDefinition) string {
 	return fmt.Sprintf("%s:%d", *t.Family, t.Revision)
@@ -50,6 +58,14 @@ type Service struct {
 	ServiceConnectConfiguration *types.ServiceConnectConfiguration
 	VolumeConfigurations        []types.ServiceVolumeConfiguration
 	DesiredCount                *int32
+}
+
+func (sv *Service) GetTags() []types.Tag {
+	return sv.Tags
+}
+
+func (sv *Service) SetTags(tags []types.Tag) {
+	sv.Tags = tags
 }
 
 func (d *App) newServiceFromTypes(ctx context.Context, in types.Service) (*Service, error) {
@@ -264,7 +280,7 @@ func (d *App) DescribeService(ctx context.Context) (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := d.config.Ignore.ApplyService(sv); err != nil {
+	if err := d.config.Ignore.Apply(sv); err != nil {
 		return nil, fmt.Errorf("failed to apply ignore: %w", err)
 	}
 	return sv, nil
@@ -403,7 +419,7 @@ func (d *App) DescribeTaskDefinition(ctx context.Context, tdArn string) (*TaskDe
 		return nil, fmt.Errorf("failed to describe task definition: %w", err)
 	}
 	in := tdToTaskDefinitionInput(out.TaskDefinition, out.Tags)
-	if err := d.config.Ignore.ApplyTaskDefinitionInput(in); err != nil {
+	if err := d.config.Ignore.Apply(in); err != nil {
 		return nil, fmt.Errorf("failed to apply ignore: %w", err)
 	}
 	return in, nil
@@ -463,9 +479,10 @@ func (d *App) RegisterTaskDefinition(ctx context.Context, td *TaskDefinitionInpu
 	if len(td.Tags) == 0 {
 		td.Tags = nil // Tags can not be empty.
 	}
+	tdi := ecs.RegisterTaskDefinitionInput(*td)
 	out, err := d.ecs.RegisterTaskDefinition(
 		ctx,
-		td,
+		&tdi,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to register task definition: %w", err)
@@ -496,7 +513,7 @@ func (d *App) LoadTaskDefinition(path string) (*TaskDefinitionInput, error) {
 	if len(td.Tags) == 0 {
 		td.Tags = nil
 	}
-	if err := d.config.Ignore.ApplyTaskDefinitionInput(&td); err != nil {
+	if err := d.config.Ignore.Apply(&td); err != nil {
 		return nil, fmt.Errorf("failed to apply ignore: %w", err)
 	}
 
@@ -547,7 +564,7 @@ func (d *App) LoadServiceDefinition(path string) (*Service, error) {
 		d.Log("[DEBUG] Loaded DesiredCount: %d", *sv.DesiredCount)
 	}
 
-	if err := d.config.Ignore.ApplyService(&sv); err != nil {
+	if err := d.config.Ignore.Apply(&sv); err != nil {
 		return nil, fmt.Errorf("failed to apply ignore: %w", err)
 	}
 	return &sv, nil

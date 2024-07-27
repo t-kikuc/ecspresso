@@ -237,6 +237,11 @@ type ConfigIgnore struct {
 	Tags []string `yaml:"tags,omitempty" json:"tags,omitempty"`
 }
 
+type hasTags interface {
+	GetTags() []types.Tag
+	SetTags([]types.Tag)
+}
+
 func (i *ConfigIgnore) filterTags(tags []types.Tag) []types.Tag {
 	if i == nil || len(i.Tags) == 0 {
 		return tags
@@ -246,12 +251,7 @@ func (i *ConfigIgnore) filterTags(tags []types.Tag) []types.Tag {
 	})
 }
 
-func (i *ConfigIgnore) ApplyService(sv *Service) error {
-	sv.Tags = i.filterTags(sv.Tags)
-	return nil
-}
-
-func (i *ConfigIgnore) ApplyTaskDefinitionInput(in *TaskDefinitionInput) error {
-	in.Tags = i.filterTags(in.Tags)
+func (i *ConfigIgnore) Apply(v hasTags) error {
+	v.SetTags(i.filterTags(v.GetTags()))
 	return nil
 }

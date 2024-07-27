@@ -535,7 +535,7 @@ func (d *App) verifyImage(ctx context.Context, image string) error {
 	return d.verifyRegistryImage(ctx, image, "", "")
 }
 
-func (d *App) verifyContainer(ctx context.Context, c *types.ContainerDefinition, td *ecs.RegisterTaskDefinitionInput) error {
+func (d *App) verifyContainer(ctx context.Context, c *types.ContainerDefinition, td *TaskDefinitionInput) error {
 	image := aws.ToString(c.Image)
 	name := fmt.Sprintf("Image[%s]", image)
 	err := verifyResource(ctx, name, func(ctx context.Context) error {
