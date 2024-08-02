@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -95,12 +96,13 @@ func (d *App) Deploy(ctx context.Context, opt DeployOption) error {
 	if err != nil {
 		return err
 	}
-	doWait, err := d.WaitFunc(sv)
+
+	tdArn, err := d.taskDefinitionArnForDeploy(ctx, sv, opt)
 	if err != nil {
 		return err
 	}
 
-	tdArn, err := d.taskDefinitionArnForDeploy(ctx, sv, opt)
+	doWait, err := d.WaitFunc(sv, d.confirmPrimaryTD(tdArn))
 	if err != nil {
 		return err
 	}
@@ -112,7 +114,7 @@ func (d *App) Deploy(ctx context.Context, opt DeployOption) error {
 			return err
 		}
 		addedTags, updatedTags, deletedTags := CompareTags(sv.Tags, newSv.Tags)
-		differ, err := diffServices(ctx, newSv, sv, d.config.ServiceDefinitionPath, &DiffOption{Unified: true, w: os.Stdout})
+		differ, err := diffServices(ctx, newSv, sv, d.config.ServiceDefinitionPath, &DiffOption{Unified: true, w: io.Discard})
 		if err != nil {
 			return fmt.Errorf("failed to diff of service definitions: %w", err)
 		}

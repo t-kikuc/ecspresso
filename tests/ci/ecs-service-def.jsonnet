@@ -16,8 +16,8 @@ local isCodeDeploy = env('DEPLOYMENT_CONTROLLER', 'ECS') == 'CODE_DEPLOY';
   ],
   deploymentConfiguration: {
     deploymentCircuitBreaker: if isCodeDeploy then null else {
-      enable: false,
-      rollback: false,
+      enable: true,
+      rollback: true,
     },
     maximumPercent: 200,
     minimumHealthyPercent: 100,

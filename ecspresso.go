@@ -68,6 +68,12 @@ func (sv *Service) SetTags(tags []types.Tag) {
 	sv.Tags = tags
 }
 
+func (sv *Service) PrimaryDeployment() (types.Deployment, bool) {
+	return lo.Find(sv.Deployments, func(dp types.Deployment) bool {
+		return aws.ToString(dp.Status) == "PRIMARY"
+	})
+}
+
 func (d *App) newServiceFromTypes(ctx context.Context, in types.Service) (*Service, error) {
 	sv := Service{
 		Service:      in,
