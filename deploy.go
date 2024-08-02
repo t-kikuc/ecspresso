@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -113,7 +114,7 @@ func (d *App) Deploy(ctx context.Context, opt DeployOption) error {
 			return err
 		}
 		addedTags, updatedTags, deletedTags := CompareTags(sv.Tags, newSv.Tags)
-		differ, err := diffServices(ctx, newSv, sv, d.config.ServiceDefinitionPath, &DiffOption{Unified: true, w: os.Stdout})
+		differ, err := diffServices(ctx, newSv, sv, d.config.ServiceDefinitionPath, &DiffOption{Unified: true, w: io.Discard})
 		if err != nil {
 			return fmt.Errorf("failed to diff of service definitions: %w", err)
 		}
