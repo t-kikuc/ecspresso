@@ -95,12 +95,13 @@ func (d *App) Deploy(ctx context.Context, opt DeployOption) error {
 	if err != nil {
 		return err
 	}
-	doWait, err := d.WaitFunc(sv)
+
+	tdArn, err := d.taskDefinitionArnForDeploy(ctx, sv, opt)
 	if err != nil {
 		return err
 	}
 
-	tdArn, err := d.taskDefinitionArnForDeploy(ctx, sv, opt)
+	doWait, err := d.WaitFunc(sv, d.confirmPrimaryTD(tdArn))
 	if err != nil {
 		return err
 	}

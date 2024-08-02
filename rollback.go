@@ -49,14 +49,17 @@ func (d *App) Rollback(ctx context.Context, opt RollbackOption) error {
 	if err != nil {
 		return err
 	}
-
-	doWait, err := d.WaitFunc(sv)
+	targetArn, err := d.FindRollbackTarget(ctx, *sv.TaskDefinition)
+	if err != nil {
+		return err
+	}
+	doWait, err := d.WaitFunc(sv, d.confirmPrimaryTD(targetArn))
 	if err != nil {
 		return err
 	}
 
 	// doRollback returns the task definition arn to be rolled back
-	rollbackedTdArn, err := doRollback(ctx, sv, opt)
+	rollbackedTdArn, err := doRollback(ctx, sv, targetArn, opt)
 	if err != nil {
 		return err
 	}
@@ -111,12 +114,8 @@ func (d *App) rollbackTaskDefinition(ctx context.Context, rollbackedTdArn string
 	return nil
 }
 
-func (d *App) RollbackServiceTasks(ctx context.Context, sv *Service, opt RollbackOption) (string, error) {
+func (d *App) RollbackServiceTasks(ctx context.Context, sv *Service, targetArn string, opt RollbackOption) (string, error) {
 	currentArn := *sv.TaskDefinition
-	targetArn, err := d.FindRollbackTarget(ctx, currentArn)
-	if err != nil {
-		return "", err
-	}
 
 	d.Log("Rolling back to %s %s", arnToName(targetArn), opt.DryRunString())
 	if opt.DryRun {
@@ -138,7 +137,7 @@ func (d *App) RollbackServiceTasks(ctx context.Context, sv *Service, opt Rollbac
 	return currentArn, nil
 }
 
-func (d *App) RollbackByCodeDeploy(ctx context.Context, sv *Service, opt RollbackOption) (string, error) {
+func (d *App) RollbackByCodeDeploy(ctx context.Context, sv *Service, targetArn string, opt RollbackOption) (string, error) {
 	dp, err := d.findDeploymentInfo(ctx)
 	if err != nil {
 		return "", err
@@ -168,10 +167,6 @@ func (d *App) RollbackByCodeDeploy(ctx context.Context, sv *Service, opt Rollbac
 	switch currentDeployment.Status {
 	case cdTypes.DeploymentStatusSucceeded, cdTypes.DeploymentStatusFailed, cdTypes.DeploymentStatusStopped:
 		currentTdArn := *sv.TaskDefinition
-		targetArn, err := d.FindRollbackTarget(ctx, currentTdArn)
-		if err != nil {
-			return "", err
-		}
 		d.Log("the deployment in progress is not found, creating a new deployment with %s %s", targetArn, opt.DryRunString())
 		if opt.DryRun {
 			return currentTdArn, nil
@@ -216,7 +211,7 @@ func (d *App) FindRollbackTarget(ctx context.Context, taskDefinitionArn string) 
 			},
 		)
 		if err != nil {
-			return "", fmt.Errorf("failed to list taskdefinitions: %w", err)
+			return "", fmt.Errorf("failed to list task definitions: %w", err)
 		}
 		if len(out.TaskDefinitionArns) == 0 {
 			return "", ErrNotFound(fmt.Sprintf("rollback target is not found: %s", err))
@@ -237,7 +232,7 @@ func (d *App) FindRollbackTarget(ctx context.Context, taskDefinitionArn string) 
 	return "", ErrNotFound("rollback target is not found")
 }
 
-type rollbackFunc func(ctx context.Context, sv *Service, opt RollbackOption) (string, error)
+type rollbackFunc func(ctx context.Context, sv *Service, targetArn string, opt RollbackOption) (string, error)
 
 func (d *App) RollbackFunc(sv *Service) (rollbackFunc, error) {
 	defaultFunc := d.RollbackServiceTasks
