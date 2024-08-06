@@ -13,20 +13,21 @@ import (
 )
 
 type RunOption struct {
-	DryRun               bool    `help:"dry run" default:"false"`
-	TaskDefinition       string  `name:"task-def" help:"task definition file for run task" default:""`
-	Wait                 bool    `help:"wait for task to complete" default:"true" negatable:""`
-	TaskOverrideStr      string  `name:"overrides" help:"task override JSON string" default:""`
-	TaskOverrideFile     string  `name:"overrides-file" help:"task override JSON file path" default:""`
-	SkipTaskDefinition   bool    `help:"skip register a new task definition" default:"false"`
-	Count                int32   `help:"number of tasks to run (max 10)" default:"1"`
-	WatchContainer       string  `help:"container name for watching exit code" default:""`
-	LatestTaskDefinition bool    `help:"use the latest task definition without registering a new task definition" default:"false"`
-	PropagateTags        string  `help:"propagate the tags for the task (SERVICE or TASK_DEFINITION)" default:""`
-	Tags                 string  `help:"tags for the task: format is KeyFoo=ValueFoo,KeyBar=ValueBar" default:""`
-	WaitUntil            string  `help:"wait until invoked tasks status reached to (running or stopped)" default:"stopped" enum:"running,stopped"`
-	Revision             *int64  `help:"revision of the task definition to run when --skip-task-definition" default:"0"`
-	ClientToken          *string `help:"unique token that identifies a request, useful for idempotency"`
+	DryRun                 bool    `help:"dry run" default:"false"`
+	TaskDefinition         string  `name:"task-def" help:"task definition file for run task" default:""`
+	Wait                   bool    `help:"wait for task to complete" default:"true" negatable:""`
+	TaskOverrideStr        string  `name:"overrides" help:"task override JSON string" default:""`
+	TaskOverrideFile       string  `name:"overrides-file" help:"task override JSON file path" default:""`
+	SkipTaskDefinition     bool    `help:"skip register a new task definition" default:"false"`
+	Count                  int32   `help:"number of tasks to run (max 10)" default:"1"`
+	WatchContainer         string  `help:"container name for watching exit code" default:""`
+	LatestTaskDefinition   bool    `help:"use the latest task definition without registering a new task definition" default:"false"`
+	PropagateTags          string  `help:"propagate the tags for the task (SERVICE or TASK_DEFINITION)" default:""`
+	Tags                   string  `help:"tags for the task: format is KeyFoo=ValueFoo,KeyBar=ValueBar" default:""`
+	WaitUntil              string  `help:"wait until invoked tasks status reached to (running or stopped)" default:"stopped" enum:"running,stopped"`
+	Revision               *int64  `help:"revision of the task definition to run when --skip-task-definition" default:"0"`
+	ClientToken            *string `help:"unique token that identifies a request, useful for idempotency"`
+	EBSDeleteOnTermination *bool   `help:"whether to delete the EBS volume when the task is stopped" default:"true" negatable:""`
 }
 
 func (opt RunOption) waitUntilRunning() bool {
@@ -125,6 +126,10 @@ func (d *App) RunTask(ctx context.Context, tdArn string, ov *types.TaskOverride,
 		EnableECSManagedTags:     sv.EnableECSManagedTags,
 		EnableExecuteCommand:     sv.EnableExecuteCommand,
 		ClientToken:              opt.ClientToken,
+		VolumeConfigurations: serviceVolumeConfigurationsToTask(
+			sv.VolumeConfigurations,
+			opt.EBSDeleteOnTermination,
+		),
 	}
 
 	switch opt.PropagateTags {
@@ -209,7 +214,9 @@ func (d *App) waitTask(ctx context.Context, task *types.Task, untilRunning bool)
 	id := arnToName(*task.TaskArn)
 	if untilRunning {
 		d.Log("Waiting for task ID %s until running", id)
-		waiter := ecs.NewTasksRunningWaiter(d.ecs)
+		waiter := ecs.NewTasksRunningWaiter(d.ecs, func(o *ecs.TasksRunningWaiterOptions) {
+			o.MaxDelay = waiterMaxDelay
+		})
 		if err := waiter.Wait(ctx, d.DescribeTasksInput(task), d.Timeout()); err != nil {
 			return err
 		}
@@ -218,7 +225,9 @@ func (d *App) waitTask(ctx context.Context, task *types.Task, untilRunning bool)
 	}
 
 	d.Log("Waiting for task ID %s until stopped", id)
-	waiter := ecs.NewTasksStoppedWaiter(d.ecs)
+	waiter := ecs.NewTasksStoppedWaiter(d.ecs, func(o *ecs.TasksStoppedWaiterOptions) {
+		o.MaxDelay = waiterMaxDelay
+	})
 	if err := waiter.Wait(ctx, d.DescribeTasksInput(task), d.Timeout()); err != nil {
 		return fmt.Errorf("failed to wait task: %w", err)
 	}
@@ -229,9 +238,7 @@ func (d *App) taskDefinitionArnForRun(ctx context.Context, opt RunOption) (strin
 	switch {
 	case *opt.Revision > 0:
 		if opt.LatestTaskDefinition {
-			err := ErrConflictOptions("revision and latest-task-definition are exclusive")
-			// TODO: v2.1 raise error
-			d.Log("[WARNING] %s", err)
+			return "", ErrConflictOptions("revision and latest-task-definition are exclusive")
 		}
 		family, _, err := d.resolveTaskdefinition(ctx)
 		if err != nil {
@@ -243,7 +250,7 @@ func (d *App) taskDefinitionArnForRun(ctx context.Context, opt RunOption) (strin
 		if err != nil {
 			return "", err
 		}
-		d.Log("Revision is not specified. Use latest task definition family" + family)
+		d.Log("Revision is not specified. Use latest task definition family " + family)
 		latestTdArn, err := d.findLatestTaskDefinitionArn(ctx, family)
 		if err != nil {
 			return "", err
@@ -257,7 +264,7 @@ func (d *App) taskDefinitionArnForRun(ctx context.Context, opt RunOption) (strin
 		if rev != "" {
 			return fmt.Sprintf("%s:%s", family, rev), nil
 		}
-		d.Log("Revision is not specified. Use latest task definition family" + family)
+		d.Log("Revision is not specified. Use latest task definition family " + family)
 		latestTdArn, err := d.findLatestTaskDefinitionArn(ctx, family)
 		if err != nil {
 			return "", err
@@ -271,6 +278,10 @@ func (d *App) taskDefinitionArnForRun(ctx context.Context, opt RunOption) (strin
 		in, err := d.LoadTaskDefinition(tdPath)
 		if err != nil {
 			return "", err
+		}
+		{
+			b, _ := MarshalJSONForAPI(in)
+			d.Log("[DEBUG] task definition: %s", string(b))
 		}
 		if opt.DryRun {
 			return fmt.Sprintf("family %s will be registered", *in.Family), nil

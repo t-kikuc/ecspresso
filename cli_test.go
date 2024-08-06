@@ -5,7 +5,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/fatih/color"
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/kayac/ecspresso/v2"
 )
 
@@ -108,6 +110,7 @@ var cliTests = []struct {
 			DryRun:               false,
 			DesiredCount:         ptr(int32(-1)),
 			SkipTaskDefinition:   false,
+			Revision:             0,
 			ForceNewDeployment:   false,
 			Wait:                 true,
 			RollbackEvents:       "",
@@ -117,13 +120,14 @@ var cliTests = []struct {
 	},
 	{
 		args: []string{"deploy", "--dry-run", "--tasks=10",
-			"--skip-task-definition", "--force-new-deployment",
+			"--skip-task-definition", "--revision=42", "--force-new-deployment",
 			"--no-wait", "--latest-task-definition"},
 		sub: "deploy",
 		subOption: &ecspresso.DeployOption{
 			DryRun:               true,
 			DesiredCount:         ptr(int32(10)),
 			SkipTaskDefinition:   true,
+			Revision:             42,
 			ForceNewDeployment:   true,
 			Wait:                 false,
 			RollbackEvents:       "",
@@ -140,6 +144,7 @@ var cliTests = []struct {
 			DryRun:               false,
 			DesiredCount:         ptr(int32(-1)),
 			SkipTaskDefinition:   false,
+			Revision:             0,
 			ForceNewDeployment:   false,
 			Wait:                 true,
 			RollbackEvents:       "",
@@ -156,6 +161,7 @@ var cliTests = []struct {
 			DryRun:               false,
 			DesiredCount:         ptr(int32(-1)),
 			SkipTaskDefinition:   false,
+			Revision:             0,
 			ForceNewDeployment:   false,
 			Wait:                 true,
 			RollbackEvents:       "",
@@ -179,6 +185,7 @@ var cliTests = []struct {
 			RollbackEvents:       "",
 			UpdateService:        true,
 			LatestTaskDefinition: false,
+			Revision:             0,
 		},
 	},
 	{
@@ -416,40 +423,42 @@ var cliTests = []struct {
 		args: []string{"run"},
 		sub:  "run",
 		subOption: &ecspresso.RunOption{
-			DryRun:               false,
-			TaskDefinition:       "",
-			Wait:                 true,
-			Count:                int32(1),
-			WatchContainer:       "",
-			PropagateTags:        "",
-			TaskOverrideStr:      "",
-			TaskOverrideFile:     "",
-			SkipTaskDefinition:   false,
-			LatestTaskDefinition: false,
-			Tags:                 "",
-			WaitUntil:            "stopped",
-			Revision:             ptr(int64(0)),
-			ClientToken:          nil,
+			DryRun:                 false,
+			TaskDefinition:         "",
+			Wait:                   true,
+			Count:                  int32(1),
+			WatchContainer:         "",
+			PropagateTags:          "",
+			TaskOverrideStr:        "",
+			TaskOverrideFile:       "",
+			SkipTaskDefinition:     false,
+			LatestTaskDefinition:   false,
+			Tags:                   "",
+			WaitUntil:              "stopped",
+			Revision:               ptr(int64(0)),
+			ClientToken:            nil,
+			EBSDeleteOnTermination: ptr(true),
 		},
 	},
 	{
 		args: []string{"run", "--no-wait", "--dry-run"},
 		sub:  "run",
 		subOption: &ecspresso.RunOption{
-			DryRun:               true,
-			TaskDefinition:       "",
-			Wait:                 false,
-			Count:                int32(1),
-			WatchContainer:       "",
-			PropagateTags:        "",
-			TaskOverrideStr:      "",
-			TaskOverrideFile:     "",
-			SkipTaskDefinition:   false,
-			LatestTaskDefinition: false,
-			Tags:                 "",
-			WaitUntil:            "stopped",
-			Revision:             ptr(int64(0)),
-			ClientToken:          nil,
+			DryRun:                 true,
+			TaskDefinition:         "",
+			Wait:                   false,
+			Count:                  int32(1),
+			WatchContainer:         "",
+			PropagateTags:          "",
+			TaskOverrideStr:        "",
+			TaskOverrideFile:       "",
+			SkipTaskDefinition:     false,
+			LatestTaskDefinition:   false,
+			Tags:                   "",
+			WaitUntil:              "stopped",
+			Revision:               ptr(int64(0)),
+			ClientToken:            nil,
+			EBSDeleteOnTermination: ptr(true),
 		},
 	},
 	{
@@ -463,20 +472,42 @@ var cliTests = []struct {
 		},
 		sub: "run",
 		subOption: &ecspresso.RunOption{
-			DryRun:               false,
-			TaskDefinition:       "foo.json",
-			Wait:                 true,
-			Count:                int32(2),
-			WatchContainer:       "app",
-			PropagateTags:        "SERVICE",
-			TaskOverrideStr:      `{"foo":"bar"}`,
-			TaskOverrideFile:     "overrides.json",
-			SkipTaskDefinition:   false,
-			LatestTaskDefinition: true,
-			Tags:                 "KeyFoo=ValueFoo,KeyBar=ValueBar",
-			WaitUntil:            "running",
-			Revision:             ptr(int64(1)),
-			ClientToken:          ptr("3abb3a41-c4dc-4c16-a3be-aaab729008a0"),
+			DryRun:                 false,
+			TaskDefinition:         "foo.json",
+			Wait:                   true,
+			Count:                  int32(2),
+			WatchContainer:         "app",
+			PropagateTags:          "SERVICE",
+			TaskOverrideStr:        `{"foo":"bar"}`,
+			TaskOverrideFile:       "overrides.json",
+			SkipTaskDefinition:     false,
+			LatestTaskDefinition:   true,
+			Tags:                   "KeyFoo=ValueFoo,KeyBar=ValueBar",
+			WaitUntil:              "running",
+			Revision:               ptr(int64(1)),
+			ClientToken:            ptr("3abb3a41-c4dc-4c16-a3be-aaab729008a0"),
+			EBSDeleteOnTermination: ptr(true),
+		},
+	},
+	{
+		args: []string{"run", "--no-ebs-delete-on-termination"},
+		sub:  "run",
+		subOption: &ecspresso.RunOption{
+			DryRun:                 false,
+			TaskDefinition:         "",
+			Wait:                   true,
+			Count:                  int32(1),
+			WatchContainer:         "",
+			PropagateTags:          "",
+			TaskOverrideStr:        "",
+			TaskOverrideFile:       "",
+			SkipTaskDefinition:     false,
+			LatestTaskDefinition:   false,
+			Tags:                   "",
+			WaitUntil:              "stopped",
+			Revision:               ptr(int64(0)),
+			ClientToken:            nil,
+			EBSDeleteOnTermination: ptr(false),
 		},
 	},
 	{
@@ -658,6 +689,30 @@ var cliTests = []struct {
 		},
 	},
 	{
+		args: []string{"diff", "--no-color"},
+		sub:  "diff",
+		subOption: &ecspresso.DiffOption{
+			Unified: true,
+		},
+		fn: func(t *testing.T, o any) {
+			if color.NoColor != true {
+				t.Errorf("unexpected color.NoColor expected: %v, got: %v", true, color.NoColor)
+			}
+		},
+	},
+	{
+		args: []string{"diff", "--color"},
+		sub:  "diff",
+		subOption: &ecspresso.DiffOption{
+			Unified: true,
+		},
+		fn: func(t *testing.T, o any) {
+			if color.NoColor == true {
+				t.Errorf("unexpected color.NoColor expected: %v, got: %v", false, color.NoColor)
+			}
+		},
+	},
+	{
 		args: []string{"appspec"},
 		sub:  "appspec",
 		subOption: &ecspresso.AppSpecOption{
@@ -787,7 +842,7 @@ func TestParseCLIv2(t *testing.T) {
 				}
 			}
 			if tt.subOption != nil {
-				if diff := cmp.Diff(opt.ForSubCommand(sub), tt.subOption); diff != "" {
+				if diff := cmp.Diff(opt.ForSubCommand(sub), tt.subOption, cmpopts.IgnoreUnexported(ecspresso.DiffOption{})); diff != "" {
 					t.Errorf("unexpected subOption: diff %s", diff)
 				}
 			}

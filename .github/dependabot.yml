@@ -3,8 +3,12 @@ updates:
   - package-ecosystem: gomod
     directory: "/"
     schedule:
-      interval: monthly
+      interval: weekly
     target-branch: v2
+    groups:
+      aws-sdk-go-v2:
+        patterns:
+          - "github.com/aws/aws-sdk-go-v2*"
   - package-ecosystem: github-actions
     directory: "/"
     schedule:

@@ -19,8 +19,22 @@ import (
 
 type waitFunc func(ctx context.Context, sv *Service) error
 
-func (d *App) WaitFunc(sv *Service) (waitFunc, error) {
-	defaultFunc := d.WaitServiceStable
+type confirmFunc func(ctx context.Context) error
+
+func (confirm confirmFunc) wrap(wait waitFunc) waitFunc {
+	if confirm == nil {
+		return wait
+	}
+	return func(ctx context.Context, sv *Service) error {
+		if err := wait(ctx, sv); err != nil {
+			return err
+		}
+		return confirm(ctx)
+	}
+}
+
+func (d *App) WaitFunc(sv *Service, confirm confirmFunc) (waitFunc, error) {
+	defaultFunc := confirm.wrap(d.WaitServiceStable)
 	if sv == nil || sv.DeploymentController == nil {
 		return defaultFunc, nil
 	}
@@ -29,12 +43,31 @@ func (d *App) WaitFunc(sv *Service) (waitFunc, error) {
 		case types.DeploymentControllerTypeCodeDeploy:
 			return d.WaitForCodeDeploy, nil
 		case types.DeploymentControllerTypeEcs:
-			return d.WaitServiceStable, nil
+			return defaultFunc, nil
 		default:
 			return nil, fmt.Errorf("unsupported deployment controller type: %s", dc.Type)
 		}
 	}
 	return defaultFunc, nil
+}
+
+func (d *App) confirmPrimaryTD(tdArn string) confirmFunc {
+	return func(ctx context.Context) error {
+		sv, err := d.DescribeService(ctx)
+		if err != nil {
+			return err
+		}
+		if dp, ok := sv.PrimaryDeployment(); ok {
+			current := aws.ToString(dp.TaskDefinition)
+			d.Log("[DEBUG] checking primary deployment %s %s == %s", *dp.Id, current, tdArn)
+			if arnToName(current) != arnToName(tdArn) {
+				return fmt.Errorf("task definition %s is not deployed yet. PRIMARY deployment is %s", tdArn, current)
+			}
+			d.Log("[DEBUG] task definition %s is deployed", tdArn)
+			return nil
+		}
+		return fmt.Errorf("no primary deployment found")
+	}
 }
 
 type WaitOption struct {
@@ -51,7 +84,7 @@ func (d *App) Wait(ctx context.Context, opt WaitOption) error {
 		return err
 	}
 	d.LogJSON(sv.DeploymentController)
-	doWait, err := d.WaitFunc(sv)
+	doWait, err := d.WaitFunc(sv, nil)
 	if err != nil {
 		return err
 	}
@@ -73,8 +106,8 @@ func (d *App) WaitServiceStable(ctx context.Context, sv *Service) error {
 	defer cancel()
 
 	tick := time.NewTicker(10 * time.Second)
+	st := &showState{lastEventAt: time.Now()}
 	go func() {
-		st := &showState{lastEventAt: time.Now()}
 		for {
 			select {
 			case <-waitCtx.Done():
@@ -88,9 +121,18 @@ func (d *App) WaitServiceStable(ctx context.Context, sv *Service) error {
 		}
 	}()
 
-	waiter := ecs.NewServicesStableWaiter(d.ecs)
+	waiter := ecs.NewServicesStableWaiter(d.ecs, func(o *ecs.ServicesStableWaiterOptions) {
+		o.MaxDelay = waiterMaxDelay
+	})
 	if err := waiter.Wait(ctx, d.DescribeServicesInput(), d.Timeout()); err != nil {
 		return fmt.Errorf("failed to wait for service stable: %w", err)
+	}
+	cancel() // stop the showServiceStatus
+
+	<-time.After(delayForServiceChanged)
+	// show the service status once more (correct all logs)
+	if err := d.showServiceStatus(ctx, st); err != nil {
+		d.Log("[WARNING] %s", err.Error())
 	}
 	return nil
 }
@@ -125,7 +167,9 @@ func (d *App) WaitForCodeDeploy(ctx context.Context, sv *Service) error {
 	d.Log("Waiting for a deployment successful ID: " + dpID)
 	go d.codeDeployProgressBar(ctx, dpID)
 
-	waiter := codedeploy.NewDeploymentSuccessfulWaiter(d.codedeploy)
+	waiter := codedeploy.NewDeploymentSuccessfulWaiter(d.codedeploy, func(o *codedeploy.DeploymentSuccessfulWaiterOptions) {
+		o.MaxDelay = waiterMaxDelay
+	})
 	return waiter.Wait(
 		ctx,
 		&codedeploy.GetDeploymentInput{DeploymentId: &dpID},

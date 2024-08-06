@@ -8,3 +8,6 @@ plugins:
   - name: tfstate
     config:
       path: terraform.tfstate
+ignore:
+  tags:
+    - ecspresso:ignore

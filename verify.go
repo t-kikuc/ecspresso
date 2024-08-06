@@ -33,10 +33,11 @@ type verifier struct {
 	cwl            *cloudwatchlogs.Client
 	ssm            *ssm.Client
 	secretsmanager *secretsmanager.Client
-	ecr            *ecr.Client
+	ecr            map[string]*ecr.Client
 	s3             *s3.Client
 	opt            *VerifyOption
 	isAssumed      bool
+	execCfg        *aws.Config
 }
 
 func (v *verifier) IsAssumed() bool {
@@ -48,11 +49,25 @@ func newVerifier(execCfg, appCfg *aws.Config, opt *VerifyOption) *verifier {
 		cwl:            cloudwatchlogs.NewFromConfig(*execCfg),
 		ssm:            ssm.NewFromConfig(*execCfg),
 		secretsmanager: secretsmanager.NewFromConfig(*execCfg),
-		ecr:            ecr.NewFromConfig(*execCfg),
-		s3:             s3.NewFromConfig(*appCfg),
-		opt:            opt,
-		isAssumed:      execCfg != appCfg,
+		ecr: map[string]*ecr.Client{
+			execCfg.Region: ecr.NewFromConfig(*execCfg),
+		},
+		s3:        s3.NewFromConfig(*appCfg),
+		opt:       opt,
+		isAssumed: execCfg != appCfg,
+		execCfg:   execCfg,
 	}
+}
+
+func (v *verifier) ecrClient(region string) *ecr.Client {
+	if c, ok := v.ecr[region]; ok {
+		return c
+	}
+	cfg := v.execCfg.Copy()
+	cfg.Region = region
+	client := ecr.NewFromConfig(cfg)
+	v.ecr[region] = client
+	return client
 }
 
 func (v *verifier) existsSecretValue(ctx context.Context, from string) error {
@@ -101,12 +116,15 @@ func (v *verifier) existsSecretValue(ctx context.Context, from string) error {
 	} else {
 		name = from
 	}
-	_, err := v.ssm.GetParameter(ctx, &ssm.GetParameterInput{
-		Name:           &name,
+	out, err := v.ssm.GetParameters(ctx, &ssm.GetParametersInput{
+		Names:          []string{name},
 		WithDecryption: aws.Bool(true),
 	})
 	if err != nil {
-		return fmt.Errorf("failed to get ssm parameter %s: %w", name, err)
+		return fmt.Errorf("failed to get ssm parameters %s: %w", name, err)
+	}
+	if len(out.Parameters) == 0 || len(out.InvalidParameters) > 0 {
+		return fmt.Errorf("ssm parameter %s is not found", name)
 	}
 	return nil
 }
@@ -334,7 +352,22 @@ func (d *App) verifyServiceDefinition(ctx context.Context) error {
 		}
 	}
 	if len(sv.LoadBalancers) == 0 && sv.HealthCheckGracePeriodSeconds != nil {
-		return fmt.Errorf("service has no load balancers, but healthCheckGracePeriodSeconds is defined.")
+		return errors.New("service has no load balancers, but healthCheckGracePeriodSeconds is defined")
+	}
+
+	for i, vc := range sv.VolumeConfigurations {
+		name := fmt.Sprintf("VolumeConfigurations[%d]", i)
+		err := verifyResource(ctx, name, func(context.Context) error {
+			if ebs := vc.ManagedEBSVolume; ebs != nil {
+				if len(ebs.TagSpecifications) > 1 {
+					d.Log("[WARNING] %s has more than one tag specifications. Only the first tag specification is used.", name)
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -378,12 +411,12 @@ func (d *App) verifyTaskDefinition(ctx context.Context) error {
 }
 
 var (
-	ecrImageURLRegex = regexp.MustCompile(`dkr\.ecr\..+.amazonaws\.com/.*`)
+	// e.g. {aws_account_id}.dkr.ecr.{region}.amazonaws.com/amazonlinux:latest
+	ecrImageURLRegex = regexp.MustCompile(`^([0-9]+)\.dkr\.ecr\.([0-9a-zA-Z-]+)\.amazonaws\.com/.*`)
 )
 
-func (d *App) verifyECRImage(ctx context.Context, image string) error {
-	d.Log("[DEBUG] VERIFY ECR Image")
-	out, err := d.verifier.ecr.GetAuthorizationToken(
+func (d *App) verifyECRImage(ctx context.Context, image, region string) error {
+	out, err := d.verifier.ecrClient(region).GetAuthorizationToken(
 		ctx,
 		&ecr.GetAuthorizationTokenInput{},
 	)
@@ -494,13 +527,15 @@ func (d *App) verifyImage(ctx context.Context, image string) error {
 	if image == "" {
 		return errors.New("image is not defined")
 	}
-	if ecrImageURLRegex.MatchString(image) {
-		return d.verifyECRImage(ctx, image)
+	if m := ecrImageURLRegex.FindStringSubmatch(image); len(m) == 3 {
+		d.Log("[DEBUG] VERIFY ECR Image %s in region %s", image, m[2])
+		return d.verifyECRImage(ctx, image, m[2]) // m[1] is aws account id, m[2] is region
 	}
+	d.Log("[DEBUG] VERIFY Registry Image %s", image)
 	return d.verifyRegistryImage(ctx, image, "", "")
 }
 
-func (d *App) verifyContainer(ctx context.Context, c *types.ContainerDefinition, td *ecs.RegisterTaskDefinitionInput) error {
+func (d *App) verifyContainer(ctx context.Context, c *types.ContainerDefinition, td *TaskDefinitionInput) error {
 	image := aws.ToString(c.Image)
 	name := fmt.Sprintf("Image[%s]", image)
 	err := verifyResource(ctx, name, func(ctx context.Context) error {
@@ -509,12 +544,18 @@ func (d *App) verifyContainer(ctx context.Context, c *types.ContainerDefinition,
 	if err != nil {
 		return err
 	}
-	for _, secret := range c.Secrets {
-		name := fmt.Sprintf("Secret %s[%s]", *secret.Name, *secret.ValueFrom)
-		err := verifyResource(ctx, name, func(ctx context.Context) error {
+	for i, secret := range c.Secrets {
+		name := aws.ToString(secret.Name)
+		if name == "" {
+			return fmt.Errorf("secrets[%d] name is missing", i)
+		}
+		valueFrom := aws.ToString(secret.ValueFrom)
+		if valueFrom == "" {
+			return fmt.Errorf("secrets[%d] %s valueFrom is missing", i, name)
+		}
+		if err := verifyResource(ctx, fmt.Sprintf("Secret %s[%s]", name, valueFrom), func(ctx context.Context) error {
 			return d.verifier.existsSecretValue(ctx, *secret.ValueFrom)
-		})
-		if err != nil {
+		}); err != nil {
 			return err
 		}
 	}

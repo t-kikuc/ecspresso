@@ -2,6 +2,7 @@ package ecspresso_test
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/kayac/ecspresso/v2"
@@ -9,6 +10,14 @@ import (
 
 func ptr[T any](v T) *T {
 	return &v
+}
+
+func str[T any](v T) string {
+	b, err := json.Marshal(v)
+	if err != nil {
+		panic(err)
+	}
+	return string(b)
 }
 
 func TestLoadTaskDefinition(t *testing.T) {

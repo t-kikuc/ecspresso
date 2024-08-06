@@ -34,20 +34,44 @@ const dryRunStr = "DRY RUN"
 
 var Version string
 var delayForServiceChanged = 3 * time.Second
+var waiterMaxDelay = 15 * time.Second
 var spcIndent = "  "
 
-type TaskDefinition = types.TaskDefinition
+type TaskDefinition types.TaskDefinition
 
-type TaskDefinitionInput = ecs.RegisterTaskDefinitionInput
+func (td *TaskDefinition) Name() string {
+	return fmt.Sprintf("%s:%d", aws.ToString(td.Family), td.Revision)
+}
 
-func taskDefinitionName(t *TaskDefinition) string {
-	return fmt.Sprintf("%s:%d", *t.Family, t.Revision)
+type TaskDefinitionInput ecs.RegisterTaskDefinitionInput
+
+func (tdi *TaskDefinitionInput) SetTags(tags []types.Tag) {
+	tdi.Tags = tags
+}
+
+func (tdi *TaskDefinitionInput) GetTags() []types.Tag {
+	return tdi.Tags
 }
 
 type Service struct {
 	types.Service
 	ServiceConnectConfiguration *types.ServiceConnectConfiguration
+	VolumeConfigurations        []types.ServiceVolumeConfiguration
 	DesiredCount                *int32
+}
+
+func (sv *Service) GetTags() []types.Tag {
+	return sv.Tags
+}
+
+func (sv *Service) SetTags(tags []types.Tag) {
+	sv.Tags = tags
+}
+
+func (sv *Service) PrimaryDeployment() (types.Deployment, bool) {
+	return lo.Find(sv.Deployments, func(dp types.Deployment) bool {
+		return aws.ToString(dp.Status) == "PRIMARY"
+	})
 }
 
 func (d *App) newServiceFromTypes(ctx context.Context, in types.Service) (*Service, error) {
@@ -55,16 +79,24 @@ func (d *App) newServiceFromTypes(ctx context.Context, in types.Service) (*Servi
 		Service:      in,
 		DesiredCount: aws.Int32(in.DesiredCount),
 	}
-	for _, dp := range in.Deployments {
-		d.Log("[DEBUG] deployment: %s %s", *dp.Id, *dp.Status)
-		if aws.ToString(dp.Status) != "PRIMARY" {
-			continue
-		}
-		scc := dp.ServiceConnectConfiguration
-		sv.ServiceConnectConfiguration = scc
-		if scc == nil {
-			break
-		}
+	dps := lo.Filter(in.Deployments, func(dp types.Deployment, i int) bool {
+		return aws.ToString(dp.Status) == "PRIMARY"
+	})
+	if sv.isCodeDeploy() {
+		// CodeDeploy does not support ServiceConnectConfiguration and VolumeConfigurations
+		return &sv, nil
+	}
+	if len(dps) == 0 {
+		d.Log("[WARNING] no primary deployment")
+		return &sv, nil
+	}
+	dp := dps[0]
+	d.Log("[DEBUG] deployment: %s %s", *dp.Id, *dp.Status)
+
+	// ServiceConnect
+	scc := dp.ServiceConnectConfiguration
+	sv.ServiceConnectConfiguration = scc
+	if scc != nil {
 		// resolve sd namespace arn to name
 		id := arnToName(aws.ToString(scc.Namespace))
 		res, err := d.sd.GetNamespace(ctx, &servicediscovery.GetNamespaceInput{
@@ -74,7 +106,6 @@ func (d *App) newServiceFromTypes(ctx context.Context, in types.Service) (*Servi
 			var oe *smithy.OperationError
 			if errors.As(err, &oe) {
 				d.Log("[WARNING] failed to get namespace: %s", oe)
-				break
 			} else {
 				return nil, fmt.Errorf("failed to get namespace: %w", err)
 			}
@@ -82,8 +113,14 @@ func (d *App) newServiceFromTypes(ctx context.Context, in types.Service) (*Servi
 		if res.Namespace != nil {
 			scc.Namespace = res.Namespace.Name
 		}
-		break
 	}
+
+	// VolumeConfigurations
+	if dp.VolumeConfigurations != nil {
+		d.Log("[DEBUG] VolumeConfigurations: %#v", dp.VolumeConfigurations)
+		sv.VolumeConfigurations = dp.VolumeConfigurations
+	}
+
 	return &sv, nil
 }
 
@@ -245,7 +282,14 @@ func (d *App) DescribeService(ctx context.Context) (*Service, error) {
 	default:
 		d.Log("[DEBUG] service %s is %s", d.Service, status)
 	}
-	return d.newServiceFromTypes(ctx, out.Services[0])
+	sv, err := d.newServiceFromTypes(ctx, out.Services[0])
+	if err != nil {
+		return nil, err
+	}
+	if err := d.config.Ignore.Apply(sv); err != nil {
+		return nil, fmt.Errorf("failed to apply ignore: %w", err)
+	}
+	return sv, nil
 }
 
 func (d *App) DescribeServiceStatus(ctx context.Context, events int) (*Service, error) {
@@ -380,7 +424,12 @@ func (d *App) DescribeTaskDefinition(ctx context.Context, tdArn string) (*TaskDe
 	if err != nil {
 		return nil, fmt.Errorf("failed to describe task definition: %w", err)
 	}
-	return tdToTaskDefinitionInput(out.TaskDefinition, out.Tags), nil
+	td := TaskDefinition(*out.TaskDefinition)
+	tdi := tdToTaskDefinitionInput(&td, out.Tags)
+	if err := d.config.Ignore.Apply(tdi); err != nil {
+		return nil, fmt.Errorf("failed to apply ignore: %w", err)
+	}
+	return tdi, nil
 }
 
 func (d *App) GetLogEvents(ctx context.Context, logGroup string, logStream string, startedAt time.Time, nextToken *string) (*string, error) {
@@ -437,15 +486,17 @@ func (d *App) RegisterTaskDefinition(ctx context.Context, td *TaskDefinitionInpu
 	if len(td.Tags) == 0 {
 		td.Tags = nil // Tags can not be empty.
 	}
+	tdi := ecs.RegisterTaskDefinitionInput(*td)
 	out, err := d.ecs.RegisterTaskDefinition(
 		ctx,
-		td,
+		&tdi,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to register task definition: %w", err)
 	}
-	d.Log("Task definition is registered %s", taskDefinitionName(out.TaskDefinition))
-	return out.TaskDefinition, nil
+	otd := TaskDefinition(*out.TaskDefinition)
+	d.Log("Task definition is registered %s", otd.Name())
+	return &otd, nil
 }
 
 func (d *App) LoadTaskDefinition(path string) (*TaskDefinitionInput, error) {
@@ -470,6 +521,10 @@ func (d *App) LoadTaskDefinition(path string) (*TaskDefinitionInput, error) {
 	if len(td.Tags) == 0 {
 		td.Tags = nil
 	}
+	if err := d.config.Ignore.Apply(&td); err != nil {
+		return nil, fmt.Errorf("failed to apply ignore: %w", err)
+	}
+
 	return &td, nil
 }
 
@@ -515,6 +570,10 @@ func (d *App) LoadServiceDefinition(path string) (*Service, error) {
 		d.Log("[DEBUG] Loaded DesiredCount: nil (-1)")
 	} else {
 		d.Log("[DEBUG] Loaded DesiredCount: %d", *sv.DesiredCount)
+	}
+
+	if err := d.config.Ignore.Apply(&sv); err != nil {
+		return nil, fmt.Errorf("failed to apply ignore: %w", err)
 	}
 	return &sv, nil
 }

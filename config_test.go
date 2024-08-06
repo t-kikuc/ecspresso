@@ -8,6 +8,8 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ecs/types"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/kayac/ecspresso/v2"
 )
 
@@ -80,7 +82,9 @@ func TestLoadConfigWithPluginDuplicate(t *testing.T) {
 
 func TestLoadConfigWithPlugin(t *testing.T) {
 	for _, ext := range []string{".yml", ".yaml", ".json", ".jsonnet"} {
-		testLoadConfigWithPlugin(t, "tests/ecspresso"+ext)
+		t.Run("tests/ecspresso"+ext, func(t *testing.T) {
+			testLoadConfigWithPlugin(t, "tests/ecspresso"+ext)
+		})
 	}
 }
 
@@ -105,7 +109,7 @@ func testLoadConfigWithPlugin(t *testing.T, path string) {
 	if err != nil {
 		t.Error(err)
 	}
-	t.Log(svd)
+	t.Log(str(svd))
 	sgID := svd.NetworkConfiguration.AwsvpcConfiguration.SecurityGroups[0]
 	subnetID := svd.NetworkConfiguration.AwsvpcConfiguration.Subnets[0]
 	if sgID != "sg-12345678" {
@@ -121,12 +125,18 @@ func testLoadConfigWithPlugin(t *testing.T, path string) {
 	if !cb.Rollback {
 		t.Errorf("unexpected deploymentCircuitBreaker.rollback got:%v", cb.Rollback)
 	}
+	if len(svd.Tags) != 1 {
+		t.Errorf("unexpected tags got:%s", str(svd.Tags))
+	}
+	if tag := svd.Tags[0]; *tag.Key != "Name" || *tag.Value != "test" {
+		t.Errorf("unexpected tag got:%s", str(tag))
+	}
 
 	td, err := app.LoadTaskDefinition(conf.TaskDefinitionPath)
 	if err != nil {
 		t.Error(err)
 	}
-	t.Log(td)
+	t.Log(str(td))
 	image := *td.ContainerDefinitions[0].Image
 	if image != "123456789012.dkr.ecr.ap-northeast-1.amazonaws.com/app:testing" {
 		t.Errorf("unexpected image got:%s", image)
@@ -134,6 +144,12 @@ func testLoadConfigWithPlugin(t *testing.T, path string) {
 	env := td.ContainerDefinitions[0].Environment[0]
 	if *env.Name != "JSON" || *env.Value != `{"foo":"bar"}` {
 		t.Errorf("unexpected JSON got:%s", *env.Value)
+	}
+	if len(td.Tags) != 1 {
+		t.Errorf("unexpected tags got:%s", str(td.Tags))
+	}
+	if tag := td.Tags[0]; *tag.Key != "Name" || *tag.Value != "test" {
+		t.Errorf("unexpected tag got:%s", str(tag))
 	}
 }
 
@@ -321,5 +337,70 @@ func TestFilterCommandDeprecated(t *testing.T) {
 		if app.FilterCommand() != ts.Expected {
 			t.Errorf("expected %s, but got %s", ts.Expected, app.FilterCommand())
 		}
+	}
+}
+
+var ConfigIgnoreTests = []struct {
+	name         string
+	ignore       *ecspresso.ConfigIgnore
+	resourceTags []types.Tag
+	expectedTags []types.Tag
+}{
+	{
+		name:   "ignore all",
+		ignore: &ecspresso.ConfigIgnore{Tags: []string{"foo", "bar", "baz"}},
+		resourceTags: []types.Tag{
+			{Key: ptr("foo"), Value: ptr("x")},
+			{Key: ptr("bar"), Value: ptr("y")},
+			{Key: ptr("baz"), Value: ptr("z")},
+		},
+		expectedTags: []types.Tag{},
+	},
+	{
+		name:   "ignore some",
+		ignore: &ecspresso.ConfigIgnore{Tags: []string{"foo", "bar"}},
+		resourceTags: []types.Tag{
+			{Key: ptr("foo"), Value: ptr("x")},
+			{Key: ptr("bar"), Value: ptr("y")},
+			{Key: ptr("baz"), Value: ptr("z")},
+		},
+		expectedTags: []types.Tag{
+			{Key: ptr("baz"), Value: ptr("z")},
+		},
+	},
+	{
+		name:   "ignore nil",
+		ignore: nil,
+		resourceTags: []types.Tag{
+			{Key: ptr("foo"), Value: ptr("x")},
+			{Key: ptr("bar"), Value: ptr("y")},
+		},
+		expectedTags: []types.Tag{
+			{Key: ptr("foo"), Value: ptr("x")},
+			{Key: ptr("bar"), Value: ptr("y")},
+		},
+	},
+	{
+		name:   "ignore case sensitive",
+		ignore: &ecspresso.ConfigIgnore{Tags: []string{"Foo"}},
+		resourceTags: []types.Tag{
+			{Key: ptr("foo"), Value: ptr("x")},
+			{Key: ptr("Foo"), Value: ptr("y")},
+		},
+		expectedTags: []types.Tag{
+			{Key: ptr("foo"), Value: ptr("x")},
+		},
+	},
+}
+
+func TestConfigIgnore(t *testing.T) {
+	opt := cmpopts.IgnoreUnexported(types.Tag{})
+	for _, tt := range ConfigIgnoreTests {
+		t.Run(tt.name, func(t *testing.T) {
+			tags := tt.ignore.FilterTags(tt.resourceTags)
+			if diff := cmp.Diff(tt.expectedTags, tags, opt); diff != "" {
+				t.Errorf("unexpected tags (-want +got):\n%s", diff)
+			}
+		})
 	}
 }

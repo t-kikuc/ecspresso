@@ -1,11 +1,14 @@
 package ecspresso_test
 
 import (
+	"bytes"
+	"context"
 	"strings"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ecs/types"
+	"github.com/fatih/color"
 	"github.com/google/go-cmp/cmp"
 	"github.com/kayac/ecspresso/v2"
 )
@@ -229,92 +232,131 @@ var testServiceDefinitionHasDesiredCount = &ecspresso.Service{
 }
 
 func TestDiffServices(t *testing.T) {
+	ctx := context.Background()
+	b := new(bytes.Buffer)
+	opt := &ecspresso.DiffOption{Unified: true}
+	opt.SetWriter(b)
+	color.NoColor = true
+
 	t.Run("when local.DesiredCount is nil, ignore diff of DesiredCount", func(t *testing.T) {
+		b.Reset()
 		diff, err := ecspresso.DiffServices(
+			ctx,
 			testServiceDefinitionNoDesiredCount,
 			testServiceDefinitionHasDesiredCount,
-			"file", true,
+			"file", opt,
 		)
 		if err != nil {
 			t.Error(err)
 		}
-		if diff != "" {
-			t.Errorf("unexpected diff: %s", diff)
+		if diff {
+			t.Errorf("unexpected differ: %t", diff)
+		}
+		if ds := b.String(); ds != "" {
+			t.Errorf("unexpected diff: %s", ds)
 		}
 	})
 	t.Run("when local.DesiredCount is not nil, detect diff of DesiredCount.", func(t *testing.T) {
+		b.Reset()
 		diff, err := ecspresso.DiffServices(
+			ctx,
 			testServiceDefinitionHasDesiredCount,
 			testServiceDefinitionNoDesiredCount,
-			"file", true,
+			"file", opt,
 		)
 		if err != nil {
 			t.Error(err)
 		}
-		if diff == "" {
-			t.Errorf("unexpected diff: %s", diff)
+		if !diff {
+			t.Errorf("unexpected differ: %t", diff)
+		}
+		if ds := b.String(); ds == "" {
+			t.Errorf("unexpected diff: %s", ds)
 		}
 	})
 
 	t.Run("remote service is nil", func(t *testing.T) {
+		b.Reset()
 		diff, err := ecspresso.DiffServices(
+			ctx,
 			testServiceDefinitionNoDesiredCount,
 			nil,
-			"file", true,
+			"file", opt,
 		)
 		if err != nil {
 			t.Error(err)
 		}
-		if diff == "" {
-			t.Errorf("unexpected diff: %s", diff)
+		if !diff {
+			t.Errorf("unexpected differ: %t", diff)
+		}
+		ds := b.String()
+		if ds == "" {
+			t.Errorf("unexpected diff: %s", ds)
 		}
 		minusDiffs := 0
-		for _, line := range strings.Split(diff, "\n") {
-			if strings.HasPrefix(line, "-") {
-				minusDiffs++
-			}
-		}
-		if minusDiffs != 1 {  // The first line is "---"
-			t.Errorf("unexpected diff. has many minus diffs: %s", diff)
-		}
-	})
-}
-
-func TestDiffTaskDefs(t *testing.T) {
-	t.Run("diff task defs same actually", func(t *testing.T) {
-		diff, err := ecspresso.DiffTaskDefs(
-			testTaskDefinition1,
-			testTaskDefinition2,
-			"file", "remote", true,
-		)
-		if err != nil {
-			t.Error(err)
-		}
-		if diff != "" {
-			t.Errorf("unexpected diff: %s", diff)
-		}
-	})
-
-	t.Run("diff task defs remote nil", func(t *testing.T) {
-		diff, err := ecspresso.DiffTaskDefs(
-			testTaskDefinition1,
-			nil,
-			"file", "", true,
-		)
-		if err != nil {
-			t.Error(err)
-		}
-		if diff == "" {
-			t.Errorf("unexpected diff: %s", diff)
-		}
-		minusDiffs := 0
-		for _, line := range strings.Split(diff, "\n") {
+		for _, line := range strings.Split(ds, "\n") {
 			if strings.HasPrefix(line, "-") {
 				minusDiffs++
 			}
 		}
 		if minusDiffs != 1 { // The first line is "---"
-			t.Errorf("unexpected diff. has many minus diffs: %s", diff)
+			t.Errorf("unexpected diff. has many minus diffs: %s", ds)
+		}
+	})
+}
+
+func TestDiffTaskDefs(t *testing.T) {
+	ctx := context.Background()
+	b := new(bytes.Buffer)
+	opt := &ecspresso.DiffOption{Unified: true}
+	opt.SetWriter(b)
+	color.NoColor = true
+
+	t.Run("diff task defs same actually", func(t *testing.T) {
+		b.Reset()
+		diff, err := ecspresso.DiffTaskDefs(
+			ctx,
+			testTaskDefinition1,
+			testTaskDefinition2,
+			"file", "remote", opt,
+		)
+		if err != nil {
+			t.Error(err)
+		}
+		if diff {
+			t.Errorf("unexpected differ: %t", diff)
+		}
+		if ds := b.String(); ds != "" {
+			t.Errorf("unexpected diff: %s", ds)
+		}
+	})
+
+	t.Run("diff task defs remote nil", func(t *testing.T) {
+		b.Reset()
+		diff, err := ecspresso.DiffTaskDefs(
+			ctx,
+			testTaskDefinition1,
+			nil,
+			"file", "", opt,
+		)
+		if err != nil {
+			t.Error(err)
+		}
+		if !diff {
+			t.Errorf("unexpected differ: %t", diff)
+		}
+		ds := b.String()
+		if ds == "" {
+			t.Errorf("unexpected diff: %s", ds)
+		}
+		minusDiffs := 0
+		for _, line := range strings.Split(ds, "\n") {
+			if strings.HasPrefix(line, "-") {
+				minusDiffs++
+			}
+		}
+		if minusDiffs != 1 { // The first line is "---"
+			t.Errorf("unexpected diff. has many minus diffs: %s", ds)
 		}
 	})
 }
