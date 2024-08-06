@@ -6,6 +6,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -18,15 +22,22 @@ import (
 	"github.com/hexops/gotextdiff/myers"
 	"github.com/hexops/gotextdiff/span"
 	"github.com/kylelemons/godebug/diff"
+	"github.com/mattn/go-shellwords"
 )
 
 type DiffOption struct {
-	Unified bool `help:"unified diff format" default:"true" negatable:""`
+	Unified  bool   `help:"unified diff format" default:"true" negatable:""`
+	External string `help:"external command to format diff" env:"ECSPRESSO_DIFF_COMMAND"`
+
+	w io.Writer `kong:"-"`
 }
 
 func (d *App) Diff(ctx context.Context, opt DiffOption) error {
 	ctx, cancel := d.Start(ctx)
 	defer cancel()
+	if opt.w == nil {
+		opt.w = os.Stdout
+	}
 
 	var remoteTaskDefArn string
 	// diff for services only when service defined
@@ -44,10 +55,8 @@ func (d *App) Diff(ctx context.Context, opt DiffOption) error {
 				return fmt.Errorf("failed to describe service: %w", err)
 			}
 		}
-		if ds, err := diffServices(newSv, remoteSv, d.config.ServiceDefinitionPath, opt.Unified); err != nil {
+		if _, err := diffServices(ctx, newSv, remoteSv, d.config.ServiceDefinitionPath, &opt); err != nil {
 			return err
-		} else if ds != "" {
-			fmt.Print(coloredDiff(ds))
 		}
 		if remoteSv != nil {
 			remoteTaskDefArn = *remoteSv.TaskDefinition
@@ -70,7 +79,7 @@ func (d *App) Diff(ctx context.Context, opt DiffOption) error {
 		}
 		remoteTaskDefArn = arn
 	}
-	var remoteTd *ecs.RegisterTaskDefinitionInput
+	var remoteTd *TaskDefinitionInput
 	if remoteTaskDefArn != "" {
 		d.Log("[DEBUG] diff task definition compare with %s", remoteTaskDefArn)
 		remoteTd, err = d.DescribeTaskDefinition(ctx, remoteTaskDefArn)
@@ -79,10 +88,8 @@ func (d *App) Diff(ctx context.Context, opt DiffOption) error {
 		}
 	}
 
-	if ds, err := diffTaskDefs(newTd, remoteTd, d.config.TaskDefinitionPath, remoteTaskDefArn, opt.Unified); err != nil {
+	if _, err := diffTaskDefs(ctx, newTd, remoteTd, d.config.TaskDefinitionPath, remoteTaskDefArn, &opt); err != nil {
 		return err
-	} else if ds != "" {
-		fmt.Print(coloredDiff(ds))
 	}
 
 	return nil
@@ -93,7 +100,7 @@ type ServiceForDiff struct {
 	Tags []types.Tag
 }
 
-func diffServices(local, remote *Service, localPath string, unified bool) (string, error) {
+func diffServices(ctx context.Context, local, remote *Service, localPath string, opt *DiffOption) (bool, error) {
 	var remoteArn string
 	if remote != nil {
 		remoteArn = aws.ToString(remote.ServiceArn)
@@ -104,7 +111,7 @@ func diffServices(local, remote *Service, localPath string, unified bool) (strin
 
 	newSvBytes, err := MarshalJSONForAPI(localSvForDiff)
 	if err != nil {
-		return "", fmt.Errorf("failed to marshal new service definition: %w", err)
+		return false, fmt.Errorf("failed to marshal new service definition: %w", err)
 	}
 	if local.DesiredCount == nil && remoteSvForDiff != nil {
 		// ignore DesiredCount when it in local is not defined.
@@ -112,54 +119,114 @@ func diffServices(local, remote *Service, localPath string, unified bool) (strin
 	}
 	remoteSvBytes, err := MarshalJSONForAPI(remoteSvForDiff)
 	if err != nil {
-		return "", fmt.Errorf("failed to marshal remote service definition: %w", err)
+		return false, fmt.Errorf("failed to marshal remote service definition: %w", err)
 	}
 
 	remoteSv := toDiffString(remoteSvBytes)
 	newSv := toDiffString(newSvBytes)
+	if remoteSv == newSv {
+		return false, nil
+	}
 
-	if unified {
+	switch {
+	case opt.External != "":
+		return true, diffExternal(ctx, opt.External, "service", remoteSv, newSv, opt)
+	case opt.Unified:
 		edits := myers.ComputeEdits(span.URIFromPath(remoteArn), remoteSv, newSv)
-		return fmt.Sprint(gotextdiff.ToUnified(remoteArn, localPath, remoteSv, edits)), nil
+		ds := fmt.Sprint(gotextdiff.ToUnified(remoteArn, localPath, remoteSv, edits))
+		fmt.Fprint(opt.w, coloredDiff(ds))
+		return true, nil
+	default:
+		ds := diff.Diff(remoteSv, newSv)
+		fmt.Fprint(opt.w, coloredDiff(fmt.Sprintf("--- %s\n+++ %s\n%s", remoteArn, localPath, ds)))
+		return true, nil
 	}
-
-	ds := diff.Diff(remoteSv, newSv)
-	if ds == "" {
-		return ds, nil
-	}
-	return fmt.Sprintf("--- %s\n+++ %s\n%s", remoteArn, localPath, ds), nil
 }
 
-func diffTaskDefs(local, remote *TaskDefinitionInput, localPath, remoteArn string, unified bool) (string, error) {
+func diffTaskDefs(ctx context.Context, local, remote *TaskDefinitionInput, localPath, remoteArn string, opt *DiffOption) (bool, error) {
 	sortTaskDefinition(local)
 	sortTaskDefinition(remote)
 
 	newTdBytes, err := MarshalJSONForAPI(local)
 	if err != nil {
-		return "", fmt.Errorf("failed to marshal new task definition: %w", err)
+		return false, fmt.Errorf("failed to marshal new task definition: %w", err)
 	}
 
 	remoteTdBytes, err := MarshalJSONForAPI(remote)
 	if err != nil {
-		return "", fmt.Errorf("failed to marshal remote task definition: %w", err)
+		return false, fmt.Errorf("failed to marshal remote task definition: %w", err)
 	}
 
 	remoteTd := toDiffString(remoteTdBytes)
 	newTd := toDiffString(newTdBytes)
+	if remoteTd == newTd {
+		return false, nil
+	}
 
-	if unified {
+	switch {
+	case opt.External != "":
+		return true, diffExternal(ctx, opt.External, "taskdef", remoteTd, newTd, opt)
+	case opt.Unified:
 		edits := myers.ComputeEdits(span.URIFromPath(remoteArn), remoteTd, newTd)
-		return fmt.Sprint(gotextdiff.ToUnified(remoteArn, localPath, remoteTd, edits)), nil
+		ds := fmt.Sprint(gotextdiff.ToUnified(remoteArn, localPath, remoteTd, edits))
+		fmt.Fprint(opt.w, coloredDiff(ds))
+		return true, nil
+	default:
+		ds := diff.Diff(remoteTd, newTd)
+		fmt.Fprint(opt.w, coloredDiff(fmt.Sprintf("--- %s\n+++ %s\n%s", remoteArn, localPath, ds)))
+		return true, nil
 	}
+}
 
-	ds := diff.Diff(remoteTd, newTd)
-	if ds == "" {
-		return ds, nil
+func diffExternal(ctx context.Context, diffCmd string, target, remote, local string, opt *DiffOption) error {
+	args, err := shellwords.Parse(diffCmd)
+	if err != nil {
+		return fmt.Errorf("failed to parse diff command: %w", err)
 	}
-	return fmt.Sprintf("--- %s\n+++ %s\n%s", remoteArn, localPath, ds), nil
+	tmpDir, err := os.MkdirTemp("", "ecspresso-diff-")
+	if err != nil {
+		return fmt.Errorf("failed to create temp dir: %w", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	pwd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to getwd: %w", err)
+	}
+	if err := os.Chdir(tmpDir); err != nil {
+		return fmt.Errorf("failed to chdir: %w", err)
+	}
+	defer os.Chdir(pwd)
+
+	for _, name := range []string{"remote", "local"} {
+		if err := os.Mkdir(name, 0755); err != nil {
+			return fmt.Errorf("failed to create temp dir: %w", err)
+		}
+	}
+	remoteFile := filepath.Join("remote", target+".json")
+	localFile := filepath.Join("local", target+".json")
+	if err := os.WriteFile(remoteFile, []byte(remote), 0644); err != nil {
+		return fmt.Errorf("failed to write remote file: %w", err)
+	}
+	if err := os.WriteFile(localFile, []byte(local), 0644); err != nil {
+		return fmt.Errorf("failed to write local file: %w", err)
+	}
+	args = append(args, remoteFile, localFile)
+
+	cmd := exec.CommandContext(ctx, args[0], args[1:]...)
+	cmd.Stdout = opt.w
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to run diff command: %w", err)
+	}
+	return nil
 }
 
 func coloredDiff(src string) string {
+	if color.NoColor {
+		// disable color
+		return src
+	}
 	var b strings.Builder
 	for _, line := range strings.Split(src, "\n") {
 		if strings.HasPrefix(line, "-") {
@@ -180,9 +247,11 @@ func tdToTaskDefinitionInput(td *TaskDefinition, tdTags []types.Tag) *TaskDefini
 		EphemeralStorage:        td.EphemeralStorage,
 		ExecutionRoleArn:        td.ExecutionRoleArn,
 		Family:                  td.Family,
+		IpcMode:                 td.IpcMode,
 		Memory:                  td.Memory,
 		NetworkMode:             td.NetworkMode,
 		PlacementConstraints:    td.PlacementConstraints,
+		PidMode:                 td.PidMode,
 		RequiresCompatibilities: td.RequiresCompatibilities,
 		RuntimePlatform:         td.RuntimePlatform,
 		TaskRoleArn:             td.TaskRoleArn,

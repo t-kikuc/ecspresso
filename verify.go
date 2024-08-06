@@ -25,7 +25,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
-	"github.com/aws/smithy-go"
 	"github.com/fatih/color"
 	"github.com/kayac/ecspresso/v2/registry"
 )
@@ -117,26 +116,15 @@ func (v *verifier) existsSecretValue(ctx context.Context, from string) error {
 	} else {
 		name = from
 	}
-	_, err := v.ssm.GetParameters(ctx, &ssm.GetParametersInput{
+	out, err := v.ssm.GetParameters(ctx, &ssm.GetParametersInput{
 		Names:          []string{name},
 		WithDecryption: aws.Bool(true),
 	})
 	if err != nil {
-		var ae smithy.APIError
-		if errors.As(err, &ae) && ae.ErrorCode() == "AccessDeniedException" {
-			// fallback to GetParameter (older ecspresso implementation)
-			// TODO: This fallback will be removed in 2.4
-			Log("[WARNING] failed to get ssm parameters with GetParameters API, fallback to GetParameter API: %s", err)
-			_, err := v.ssm.GetParameter(ctx, &ssm.GetParameterInput{
-				Name:           aws.String(name),
-				WithDecryption: aws.Bool(true),
-			})
-			if err != nil {
-				return fmt.Errorf("failed to get ssm parameter %s: %w", name, err)
-			}
-		} else {
-			return fmt.Errorf("failed to get ssm parameters %s: %w", name, err)
-		}
+		return fmt.Errorf("failed to get ssm parameters %s: %w", name, err)
+	}
+	if len(out.Parameters) == 0 || len(out.InvalidParameters) > 0 {
+		return fmt.Errorf("ssm parameter %s is not found", name)
 	}
 	return nil
 }
@@ -547,7 +535,7 @@ func (d *App) verifyImage(ctx context.Context, image string) error {
 	return d.verifyRegistryImage(ctx, image, "", "")
 }
 
-func (d *App) verifyContainer(ctx context.Context, c *types.ContainerDefinition, td *ecs.RegisterTaskDefinitionInput) error {
+func (d *App) verifyContainer(ctx context.Context, c *types.ContainerDefinition, td *TaskDefinitionInput) error {
 	image := aws.ToString(c.Image)
 	name := fmt.Sprintf("Image[%s]", image)
 	err := verifyResource(ctx, name, func(ctx context.Context) error {
@@ -556,12 +544,18 @@ func (d *App) verifyContainer(ctx context.Context, c *types.ContainerDefinition,
 	if err != nil {
 		return err
 	}
-	for _, secret := range c.Secrets {
-		name := fmt.Sprintf("Secret %s[%s]", *secret.Name, *secret.ValueFrom)
-		err := verifyResource(ctx, name, func(ctx context.Context) error {
+	for i, secret := range c.Secrets {
+		name := aws.ToString(secret.Name)
+		if name == "" {
+			return fmt.Errorf("secrets[%d] name is missing", i)
+		}
+		valueFrom := aws.ToString(secret.ValueFrom)
+		if valueFrom == "" {
+			return fmt.Errorf("secrets[%d] %s valueFrom is missing", i, name)
+		}
+		if err := verifyResource(ctx, fmt.Sprintf("Secret %s[%s]", name, valueFrom), func(ctx context.Context) error {
 			return d.verifier.existsSecretValue(ctx, *secret.ValueFrom)
-		})
-		if err != nil {
+		}); err != nil {
 			return err
 		}
 	}

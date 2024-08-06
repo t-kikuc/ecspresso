@@ -119,18 +119,26 @@ func (c *Repository) fetchManifests(ctx context.Context, method, tag string) (*h
 }
 
 func (c *Repository) getAvailability(ctx context.Context, tag string) (*http.Response, error) {
-	resp, err := c.fetchManifests(ctx, http.MethodHead, tag)
-	if err != nil {
-		return nil, err
+	retryer := retryPolicy.Start(ctx)
+	for retryer.Continue() {
+		resp, err := c.fetchManifests(ctx, http.MethodHead, tag)
+		if err != nil {
+			return nil, err
+		}
+		resp.Body.Close()
+		if resp.StatusCode == http.StatusTooManyRequests {
+			continue
+		} else {
+			return resp, nil
+		}
 	}
-	resp.Body.Close()
-	return resp, nil
+	return nil, fmt.Errorf("failed to fetch manifests: %w", ErrPullRateLimitExceeded)
 }
 
 func (c *Repository) getManifests(ctx context.Context, tag string) (mediaType string, _ io.ReadCloser, _ error) {
-	retrier := retryPolicy.Start(ctx)
+	retryer := retryPolicy.Start(ctx)
 	var lastErr error
-	for retrier.Continue() {
+	for retryer.Continue() {
 		resp, err := c.fetchManifests(ctx, http.MethodGet, tag)
 		if err == nil && resp.StatusCode == http.StatusOK {
 			mediaType = parseContentType(resp.Header.Get("Content-Type"))
@@ -139,14 +147,14 @@ func (c *Repository) getManifests(ctx context.Context, tag string) (mediaType st
 		switch resp.StatusCode {
 		case http.StatusNotFound, http.StatusUnauthorized:
 			// should not be retried
-			return "", nil, fmt.Errorf("faild to fetch manifests: %s", resp.Status)
+			return "", nil, fmt.Errorf("failed to fetch manifests: %s %d", resp.Status, resp.StatusCode)
 		case http.StatusTooManyRequests:
 			lastErr = ErrPullRateLimitExceeded
 		default:
 			lastErr = fmt.Errorf(resp.Status)
 		}
 	}
-	return "", nil, fmt.Errorf("faild to fetch manifests: %w", lastErr)
+	return "", nil, fmt.Errorf("failed to fetch manifests: %w", lastErr)
 }
 
 func (c *Repository) getImageConfig(ctx context.Context, digest string) (io.ReadCloser, error) {

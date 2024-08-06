@@ -9,8 +9,6 @@ import (
 	"github.com/kayac/ecspresso/v2"
 )
 
-var v2_1_OrLater = false // TODO: set true if v2.1
-
 type taskDefinitionArnForRunSuite struct {
 	opts     []string
 	td       string
@@ -113,7 +111,7 @@ func TestTaskDefinitionArnForRun(t *testing.T) {
 			}
 			opts := *cliopts.Run
 			tdArn, err := app.TaskDefinitionArnForRun(ctx, opts)
-			if v2_1_OrLater && s.raiseErr {
+			if s.raiseErr {
 				if err == nil {
 					t.Errorf("%s %s expected error, but got nil", config, args)
 				}

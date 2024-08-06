@@ -2,9 +2,11 @@ package ecspresso
 
 import (
 	"context"
+	"io"
 	"log"
 
 	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/ecs/types"
 )
 
 var (
@@ -48,4 +50,12 @@ func ResetAWSV2ConfigLoadOptionsFunc() {
 
 func (d *App) TaskDefinitionArnForRun(ctx context.Context, opt RunOption) (string, error) {
 	return d.taskDefinitionArnForRun(ctx, opt)
+}
+
+func (opt *DiffOption) SetWriter(w io.Writer) {
+	opt.w = w
+}
+
+func (i *ConfigIgnore) FilterTags(tags []types.Tag) []types.Tag {
+	return i.filterTags(tags)
 }

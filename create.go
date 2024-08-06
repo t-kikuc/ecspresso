@@ -93,7 +93,7 @@ func (d *App) createService(ctx context.Context, opt DeployOption) error {
 		return err
 	}
 
-	doWait, err := d.WaitFunc(sv)
+	doWait, err := d.WaitFunc(sv, nil)
 	if err != nil {
 		return err
 	}

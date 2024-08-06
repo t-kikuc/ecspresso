@@ -1,4 +1,6 @@
-local isCodeDeploy = std.extVar('DEPLOYMENT_CONTROLLER') == 'CODE_DEPLOY';
+local env = std.native('env');
+local must_env = std.native('must_env');
+local isCodeDeploy = env('DEPLOYMENT_CONTROLLER', 'ECS') == 'CODE_DEPLOY';
 {
   capacityProviderStrategy: [
     {
@@ -14,18 +16,18 @@ local isCodeDeploy = std.extVar('DEPLOYMENT_CONTROLLER') == 'CODE_DEPLOY';
   ],
   deploymentConfiguration: {
     deploymentCircuitBreaker: if isCodeDeploy then null else {
-      enable: false,
-      rollback: false,
+      enable: true,
+      rollback: true,
     },
     maximumPercent: 200,
     minimumHealthyPercent: 100,
   },
   deploymentController: {
-    type: '{{ env `DEPLOYMENT_CONTROLLER` `ECS` }}',
+    type: env('DEPLOYMENT_CONTROLLER', 'ECS'),
   },
-  desiredCount: 1,
+  desiredCount: std.parseInt(env('DESIRED_COUNT', '1')),
   enableECSManagedTags: false,
-  enableExecuteCommand: true,
+  enableExecuteCommand: std.parseJson(env('ENABLE_EXECUTE_COMMAND', 'true')),
   healthCheckGracePeriodSeconds: 0,
   loadBalancers: [
     {
@@ -63,12 +65,16 @@ local isCodeDeploy = std.extVar('DEPLOYMENT_CONTROLLER') == 'CODE_DEPLOY';
       key: 'cluster',
       value: 'ecspresso-test',
     },
+    {
+      key: 'cost-category',
+      value: 'ecspresso-test',
+    },
   ],
   volumeConfigurations: if isCodeDeploy then null else [
     {
       managedEBSVolume: {
         filesystemType: 'ext4',
-        roleArn: 'arn:aws:iam::{{ must_env `AWS_ACCOUNT_ID` }}:role/ecsInfrastructureRole',
+        roleArn: 'arn:aws:iam::%s:role/ecsInfrastructureRole' % must_env('AWS_ACCOUNT_ID'),
         sizeInGiB: 10,
         tagSpecifications: [
           {

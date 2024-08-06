@@ -6,11 +6,11 @@ export SERVICE := nginx
 export NOW := $(shell date +%Y%m%d%H%M%S)
 export CLIENT_TOKEN := $(shell uuidgen)
 export DEPLOYMENT_CONTROLLER ?= ECS
-ECSPRESSO := ecspresso --envfile envfile --ext-str DEPLOYMENT_CONTROLLER=$(DEPLOYMENT_CONTROLLER)
+ECSPRESSO := ecspresso --envfile envfile
 
 help:
 
-test: deploy rollback refresh deploy-no-update-service scale down up delete
+test: deploy deploy rollback refresh deploy-no-update-service scale down up delete
 
 status:
 	$(ECSPRESSO) status --events 10
@@ -58,13 +58,13 @@ run-task:
 		--overrides '{"containerOverrides":[{"name":"nginx", "command":["nginx", "-V"]}]}' \
 		--client-token $(CLIENT_TOKEN)
 	OPTION=-v $(ECSPRESSO) --envfile envfile.override run \
-		--overrides-file=overrides.json \
+		--overrides-file=overrides.jsonnet \
 		--dry-run
 	OPTION=-v $(ECSPRESSO) --envfile envfile.override run \
-		--overrides-file=overrides.json \
+		--overrides-file=overrides.jsonnet \
 		--wait-until=running
 	OPTION=-v $(ECSPRESSO) --envfile envfile.override run \
-		--overrides-file=overrides.json \
+		--overrides-file=overrides.jsonnet \
 		--wait-until=stopped
 
 wait:

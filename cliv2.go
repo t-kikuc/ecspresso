@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/alecthomas/kong"
+	"github.com/fatih/color"
 )
 
 func ParseCLIv2(args []string) (string, *CLIOptions, func(), error) {
@@ -36,5 +37,6 @@ func ParseCLIv2(args []string) (string, *CLIOptions, func(), error) {
 	if opts.ExtCode == nil {
 		opts.ExtCode = map[string]string{}
 	}
+	color.NoColor = !opts.Color
 	return sub, &opts, func() { c.PrintUsage(true) }, nil
 }

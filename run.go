@@ -238,9 +238,7 @@ func (d *App) taskDefinitionArnForRun(ctx context.Context, opt RunOption) (strin
 	switch {
 	case *opt.Revision > 0:
 		if opt.LatestTaskDefinition {
-			err := ErrConflictOptions("revision and latest-task-definition are exclusive")
-			// TODO: v2.1 raise error
-			d.Log("[WARNING] %s", err)
+			return "", ErrConflictOptions("revision and latest-task-definition are exclusive")
 		}
 		family, _, err := d.resolveTaskdefinition(ctx)
 		if err != nil {
@@ -252,7 +250,7 @@ func (d *App) taskDefinitionArnForRun(ctx context.Context, opt RunOption) (strin
 		if err != nil {
 			return "", err
 		}
-		d.Log("Revision is not specified. Use latest task definition family" + family)
+		d.Log("Revision is not specified. Use latest task definition family " + family)
 		latestTdArn, err := d.findLatestTaskDefinitionArn(ctx, family)
 		if err != nil {
 			return "", err
@@ -266,7 +264,7 @@ func (d *App) taskDefinitionArnForRun(ctx context.Context, opt RunOption) (strin
 		if rev != "" {
 			return fmt.Sprintf("%s:%s", family, rev), nil
 		}
-		d.Log("Revision is not specified. Use latest task definition family" + family)
+		d.Log("Revision is not specified. Use latest task definition family " + family)
 		latestTdArn, err := d.findLatestTaskDefinitionArn(ctx, family)
 		if err != nil {
 			return "", err

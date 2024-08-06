@@ -57,6 +57,10 @@
         ],
         portName: 'nginx',
         discoveryName: 'nginx-server',
+        timeout: {
+          idleTimeoutSeconds: 3600,
+          perRequestTimeoutSeconds: 60,
+        },
       },
     ],
   },

@@ -19,8 +19,22 @@ import (
 
 type waitFunc func(ctx context.Context, sv *Service) error
 
-func (d *App) WaitFunc(sv *Service) (waitFunc, error) {
-	defaultFunc := d.WaitServiceStable
+type confirmFunc func(ctx context.Context) error
+
+func (confirm confirmFunc) wrap(wait waitFunc) waitFunc {
+	if confirm == nil {
+		return wait
+	}
+	return func(ctx context.Context, sv *Service) error {
+		if err := wait(ctx, sv); err != nil {
+			return err
+		}
+		return confirm(ctx)
+	}
+}
+
+func (d *App) WaitFunc(sv *Service, confirm confirmFunc) (waitFunc, error) {
+	defaultFunc := confirm.wrap(d.WaitServiceStable)
 	if sv == nil || sv.DeploymentController == nil {
 		return defaultFunc, nil
 	}
@@ -29,12 +43,31 @@ func (d *App) WaitFunc(sv *Service) (waitFunc, error) {
 		case types.DeploymentControllerTypeCodeDeploy:
 			return d.WaitForCodeDeploy, nil
 		case types.DeploymentControllerTypeEcs:
-			return d.WaitServiceStable, nil
+			return defaultFunc, nil
 		default:
 			return nil, fmt.Errorf("unsupported deployment controller type: %s", dc.Type)
 		}
 	}
 	return defaultFunc, nil
+}
+
+func (d *App) confirmPrimaryTD(tdArn string) confirmFunc {
+	return func(ctx context.Context) error {
+		sv, err := d.DescribeService(ctx)
+		if err != nil {
+			return err
+		}
+		if dp, ok := sv.PrimaryDeployment(); ok {
+			current := aws.ToString(dp.TaskDefinition)
+			d.Log("[DEBUG] checking primary deployment %s %s == %s", *dp.Id, current, tdArn)
+			if arnToName(current) != arnToName(tdArn) {
+				return fmt.Errorf("task definition %s is not deployed yet. PRIMARY deployment is %s", tdArn, current)
+			}
+			d.Log("[DEBUG] task definition %s is deployed", tdArn)
+			return nil
+		}
+		return fmt.Errorf("no primary deployment found")
+	}
 }
 
 type WaitOption struct {
@@ -51,7 +84,7 @@ func (d *App) Wait(ctx context.Context, opt WaitOption) error {
 		return err
 	}
 	d.LogJSON(sv.DeploymentController)
-	doWait, err := d.WaitFunc(sv)
+	doWait, err := d.WaitFunc(sv, nil)
 	if err != nil {
 		return err
 	}

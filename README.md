@@ -2,11 +2,11 @@
 
 ecspresso is a deployment tool for Amazon ECS.
 
-(pronounced same as "espresso")
+(pronounced the same as "espresso" :coffee:)
 
 ## Documents
 
-- [Differences of v1 between v2](docs/v1-v2.md).
+- [Differences between v1 and v2](docs/v1-v2.md).
 - [ecspresso Advent Calendar 2020](https://adventar.org/calendars/5916) (Japanese)
 - [ecspresso handbook](https://zenn.dev/fujiwara/books/ecspresso-handbook-v2) (Japanese)
 - [Command Reference](https://zenn.dev/fujiwara/books/ecspresso-handbook-v2/viewer/reference) (Japanese)
@@ -32,7 +32,7 @@ $ asdf global ecspresso 2.3.0
 
 ### aqua (macOS and Linux)
 
-[aqua](https://aquaproj.github.io/) is a CLI Version Manager.
+[aqua](https://aquaproj.github.io/) is a CLI version manager.
 
 ```console
 $ aqua g -i kayac/ecspresso
@@ -66,15 +66,15 @@ jobs:
 
 `version: latest` installs different versions of ecspresso for each Orb version.
 - fujiwara/ecspresso@0.0.15
-  - The latest release version (v2 or later)
+  - The latest release version (v2 and later)
 - fujiwara/ecspresso@1.0.0
   - The latest version of v1.x
 - fujiwara/ecspresso@2.0.3
   - The latest version of v2.x
 
-`version: latest` is not recommended because it may cause unexpected behavior when the new version of ecspresso is released.
+Note: `version: latest` is not recommended as it may cause unexpected behavior when a new version of ecspresso is released.
 
-Orb `fujiwara/ecspresso@2.0.2` supports `version-file: path/to/file` installs ecspresso that version written in the file. This version number does not have `v` prefix, For example, `2.0.0`.
+Orb `fujiwara/ecspresso@2.0.2` supports `version-file: path/to/file`, which installs the ecspresso version specified in the file. This version number does not have a `v` prefix, For example, `2.0.0`.
 
 ### GitHub Actions
 
@@ -94,7 +94,7 @@ jobs:
           ecspresso deploy --config ecspresso.yml
 ```
 
-Pass the parameter "latest" to use the latest version of ecspresso.
+To use the latest version of ecspresso, pass the parameter "latest".
 
 ```yaml
       - uses: kayac/ecspresso@v2
@@ -108,9 +108,9 @@ Pass the parameter "latest" to use the latest version of ecspresso.
 - kayac/ecspresso@v2
   - The latest version of v2.x
 
-`version: latest` is not recommended because it may cause unexpected behavior when the new version of ecspresso is released.
+Note: `version: latest` is not recommended as it may cause unexpected behavior when a new version of ecspresso is released.
 
-GitHub Action `kayac/ecspresso@v2` supports `version-file: path/to/file` installs ecspresso that version written in the file. This version number does not have `v` prefix, For example `2.3.0`.
+Action `kayac/ecspresso@v2` supports `version-file: path/to/file`, which installs the ecspresso version specified in the file. This version number does not have a `v` prefix, For example `2.3.0`.
 
 ## Usage
 
@@ -127,6 +127,7 @@ Flags:
       --assume-role-arn=""        the ARN of the role to assume ($ECSPRESSO_ASSUME_ROLE_ARN)
       --timeout=TIMEOUT           timeout. Override in a configuration file ($ECSPRESSO_TIMEOUT).
       --filter-command=STRING     filter command ($ECSPRESSO_FILTER_COMMAND)
+      --[no-]color                enable colorized output ($ECSPRESSO_COLOR)
 
 Commands:
   appspec
@@ -194,7 +195,7 @@ For more options for sub-commands, See `ecspresso sub-command --help`.
 
 ## Quick Start
 
-ecspresso can easily manage your existing/running ECS service by codes.
+ecspresso allows you to easily manage your existing/running ECS services by code.
 
 Try `ecspresso init` for your ECS service with option `--region`, `--cluster` and `--service`.
 
@@ -205,9 +206,9 @@ $ ecspresso init --region ap-northeast-1 --cluster default --service myservice -
 2019/10/12 01:31:48 myservice/default save config to ecspresso.yml
 ```
 
-Let me see the generated files ecspresso.yml, ecs-service-def.json, and ecs-task-def.json.
+Review the generated files: `ecspresso.yml`, `ecs-service-def.json`, and `ecs-task-def.json`.
 
-And then, you already can deploy the service by ecspresso!
+Now you can deploy the service using ecspresso!
 
 ```console
 $ ecspresso deploy --config ecspresso.yml
@@ -224,17 +225,17 @@ Modify ecs-task-def.json as below.
 +  "image": "nginx:{{ must_env `IMAGE_TAG` }}",
 ```
 
-And then, deploy the service with environment variable `IMAGE_TAG`.
+Then, deploy the service with environment variable `IMAGE_TAG`.
 
 ```console
 $ IMAGE_TAG=stable ecspresso deploy --config ecspresso.yml
 ```
 
-See also [Configuration file](#configuration-file) and [Template syntax](#template-syntax) section.
+For more information, refer to the [Configuration file](#configuration-file) and [Template syntax](#template-syntax) sections.
 
 ## Configuration file
 
-A configuration file of ecspresso (YAML or JSON, or Jsonnet format).
+A configuration file for ecspresso (YAML, JSON, or Jsonnet format).
 
 ```yaml
 region: ap-northeast-1 # or AWS_REGION environment variable
@@ -242,23 +243,30 @@ cluster: default
 service: myservice
 task_definition: taskdef.json
 timeout: 5m # default 10m
+ignore:
+  tags:
+    - ecspresso:ignore # ignore tags of service and task definition
 ```
 
 `ecspresso deploy` works as below.
 
 - Register a new task definition from `task-definition` file (JSON or Jsonnet).
-  - Replace ```{{ env `FOO` `bar` }}``` syntax in the JSON file to environment variable "FOO".
+  - Replace ```{{ env `FOO` `bar` }}``` syntax in the JSON file with environment variable "FOO".
     - If "FOO" is not defined, replaced by "bar"
-  - Replace ```{{ must_env `FOO` }}``` syntax in the JSON file to environment variable "FOO".
+  - Replace ```{{ must_env `FOO` }}``` syntax in the JSON file wth environment variable "FOO".
     - If "FOO" is not defined, abort immediately.
 - Update service tasks by the `service_definition` file (JSON or Jsonnet).
 - Wait for the service to be stable.
 
-Configuration files and task/service definition files are read by [go-config](https://github.com/kayac/go-config). go-config has template functions `env`, `must_env` and `json_escape`.
+Configuration files and task/service definition files are read by [go-config](https://github.com/kayac/go-config) which provides template functions `env`, `must_env` and `json_escape`.
 
 ## Template syntax
 
-ecspresso uses the [text/template standard package in Go](https://pkg.go.dev/text/template) to render template files, and parses as YAML/JSON/Jsonnet. By default, ecspresso provides the following as template functions.
+ecspresso uses the [text/template standard package in Go](https://pkg.go.dev/text/template) to render template files, and parses them as YAML or JSON.
+
+When using Jsonnet, ecspresso first renders the Jsonnet files and then parses them as text/template. As a result, template functions can only render string values using "{{ ... }}", since the template function syntax {{ }} conflicts with Jsonnet syntax. To render non-string values, consider using [Jsonnet functions](#jsonnet-functions) instead.
+
+By default, ecspresso provides the following as template functions.
 
 ### `env`
 
@@ -266,7 +274,7 @@ ecspresso uses the [text/template standard package in Go](https://pkg.go.dev/tex
 "{{ env `NAME` `default value` }}"
 ```
 
-If the environment variable `NAME` is set, it will replace with its value. If it's not set, it will replace with "default value".
+This replaces the placeholder with the value of the environment variable NAME. If not set, it defaults to "default value".
 
 ### `must_env`
 
@@ -274,9 +282,9 @@ If the environment variable `NAME` is set, it will replace with its value. If it
 "{{ must_env `NAME` }}"
 ```
 
-It replaces with the value of the environment variable `NAME`. If the variable isn't set at the time of execution, ecspresso will panic and stop forcefully.
+This replaces the placeholder with the value of environment variable NAME. If not set, ecspresso will panic and stop forcefully.
 
-By defining values that can cause issues when running without meaningful values with must_env, you can prevent unintended deployments.
+Defining critical values with `must_env` helps prevent unintended deployments by ensuring these values are set before execution.
 
 ### `json_escape`
 
@@ -284,11 +292,11 @@ By defining values that can cause issues when running without meaningful values 
 "{{ must_env `JSON_VALUE` | json_escape }}"
 ```
 
-It escapes values as JSON strings. Use it when you want to escape values that need to be embedded as strings and require escaping, like quotes.
+This escapes values as JSON strings, which is useful for embedding values as strings that require escaping, such as quotes.
 
 ### Plugin provided template functions
 
-ecspresso also adds some template functions by plugins. See [Plugins](#plugins) section.
+ecspresso also adds some template functions via plugins. See the [Plugins](#plugins) section.
 
 ## Example of deployment
 
@@ -314,7 +322,7 @@ Events:
 
 ### Blue/Green deployment (with AWS CodeDeploy)
 
-`ecspresso deploy` can deploy service having CODE_DEPLOY deployment controller. See ecs-service-def.json below.
+`ecspresso deploy` can deploy services using the CODE_DEPLOY deployment controller. Configure ecs-service-def.json as follows.
 
 ```json
 {
@@ -325,12 +333,11 @@ Events:
 }
 ```
 
-ecspresso doesn't create and modify any resources about CodeDeploy. You must create an application and a deployment group for your ECS service on CodeDeploy in the other way.
+Important notes:
 
-ecspresso finds a CodeDeploy deployment setting for the ECS service automatically.
-But, if you have too many CodeDeploy applications, API calls of that finding process may cause throttling.
-
-In this case, you may specify CodeDeploy application_name and deployment_group_name in a config file.
+- ecspresso does not create or modify any CodeDeploy resources. You must separately create an application and deployment group for your ECS service in CodeDeploy.
+- ecspresso automatically detects CodeDeploy deployment settings for the ECS service.
+- If there are numerous CodeDeploy applications, the API calls during this detection process may cause throttling. To mitigate this, specify the CodeDeploy application_name and deployment_group_name in the config file:
 
 ```yaml
 # ecspresso.yml
@@ -358,7 +365,7 @@ Events:
 2019/10/15 22:47:09 myService/default https://ap-northeast-1.console.aws.amazon.com/codesuite/codedeploy/deployments/d-XXXXXXXXX?region=ap-northeast-1
 ```
 
-CodeDeploy appspec hooks can be defined in a config file. ecspresso creates `Resources` and `version` elements in appspec on deploy automatically.
+CodeDeploy appspec hooks can be defined in a config file. ecspresso automatically creates `Resources` and `version` elements in appspec on deployment:
 
 ```yaml
 cluster: default
@@ -376,7 +383,7 @@ appspec:
 
 ## Scale out/in
 
-To change a desired count of the service, specify `scale --tasks`.
+To change the desired count of a service, specify `scale --tasks`.
 
 ```console
 $ ecspresso scale --tasks 10
@@ -386,7 +393,7 @@ $ ecspresso scale --tasks 10
 
 ## Example of deploy
 
-ecspresso can deploy a service by `service_definition` JSON file and `task_definition`.
+ecspresso can deploy a service using a `service_definition` JSON file.
 
 ```console
 $ ecspresso deploy --config ecspresso.yml
@@ -398,7 +405,7 @@ $ ecspresso deploy --config ecspresso.yml
 service_definition: service.json
 ```
 
-example of service.json below.
+service.json example:
 
 ```json
 {
@@ -431,13 +438,13 @@ Keys are in the same format as `aws ecs describe-services` output.
 $ ecspresso run --config ecspresso.yml --task-def=db-migrate.json
 ```
 
-When `--task-def` is not set, use a task definition included in a service.
+If `--task-def` is not set, ecspresso will use the task definition included in the service.
 
-Other options for RunTask API are set by service attributes(CapacityProviderStrategy, LaunchType, PlacementConstraints, PlacementStrategy and PlatformVersion).
+Other options for RunTask API are set by service attributes (CapacityProviderStrategy, LaunchType, PlacementConstraints, PlacementStrategy and PlatformVersion).
 
 ## Notes
 
-### Version constraint.
+### Version constraint
 
 `required_version` in the configuration file is for fixing the version of ecspresso.
 
@@ -445,13 +452,13 @@ Other options for RunTask API are set by service attributes(CapacityProviderStra
 required_version: ">= 2.0.0, < 3"
 ```
 
-This description allows execution if the version is greater than or equal to 2.0.0 and less than or equal to 3. If this configuration file is read in any other version, execution will fail at that point.
+This allows ecspresso to execute if the version is greater than or equal to 2.0.0 and less than 3. If the version does not fall within this range, execution will fail.
 
 This feature is implemented by [go-version](github.com/hashicorp/go-version).
 
 ### Manage Application Auto Scaling
 
-If you're using Application Auto Scaling for your ECS service, adjusting the minimum and maximum auto-scaling settings with the `ecspresso scale` command is a breeze. Simply specify either `scale --auto-scaling-min` or `scale --auto-scaling-max` to modify the settings.
+For ECS services using Application Auto Scaling, adjusting the minimum and maximum auto-scaling settings with the `ecspresso scale` command is a breeze. Simply specify either `scale --auto-scaling-min` or `scale --auto-scaling-max` to modify the settings.
 
 ```console
 $ ecspresso scale --tasks 5 --auto-scaling-min 5 --auto-scaling-max 20
@@ -462,26 +469,34 @@ $ ecspresso scale --tasks 5 --auto-scaling-min 5 --auto-scaling-max 20
 - `--suspend-auto-scaling` sets suspended state to true.
 - `--resume-auto-scaling` sets suspended state to false.
 
-When you want to change the suspended state simply, try `ecspresso scale --suspend-auto-scaling` or `ecspresso scale --resume-auto-scaling`. That operation will change suspended state only.
+To change the suspended state, simply use `ecspresso scale --suspend-auto-scaling` or `ecspresso scale --resume-auto-scaling`. These commands will only change the suspended state without affecting other settings.
 
 ### Use Jsonnet instead of JSON and YAML.
 
-ecspresso v1.7 or later can use [Jsonnet](https://jsonnet.org/) file format for service and task definition.
+ecspresso supports the [Jsonnet](https://jsonnet.org/) file format.
 
-v2.0 or later can use Jsonnet for configuration file too.
+- v1.7 and later: Jsonnet support for service and task definitions
+- v2.0 and later: Jsonnet support for the configuration file
+- v2.4 and later: supports [Jsonnet functions](#jsonnet-functions)
 
-If the file extension is .jsonnet, ecspresso will process Jsonnet first, convert it to JSON, and then load it.
+If a file has the `.jsonnet` extension, ecspresso will proceed in the following order:
+
+1. process it as Jsonnet
+2. convert it to JSON
+3. load it with evaluation template syntax.
+
+Using [Template syntax](#template-syntax) in Jsonnet files may lead to syntax errors due to conflicts with Jsonnet syntax. In such cases, consider using [Jsonnet functions](#jsonnet-functions) instead.
 
 ```jsonnet
 {
-  cluser: 'default',
+  cluster: 'default',
   service: 'myservice',
   service_definition: 'ecs-service-def.jsonnet',
   task_definition: 'ecs-task-def.jsonnet',
 }
 ```
 
-ecspresso includes [github.com/google/go-jsonnet](https://github.com/google/go-jsonnet) as a library, we don't need the jsonnet command.
+ecspresso includes [github.com/google/go-jsonnet](https://github.com/google/go-jsonnet) as a library, so a separate installation of jsonnet is not needed.
 
 `--ext-str` and `--ext-code` flag sets [Jsonnet External Variables](https://jsonnet.org/ref/stdlib.html#ext_vars).
 
@@ -496,14 +511,44 @@ $ ecspresso --ext-str Foo=foo --ext-code "Bar=1+1" ...
 }
 ```
 
+### Jsonnet functions
+
+v2.4 and later supports Jsonnet native functions in Jsonnet files.
+
+In the .jsonnet file,:
+
+1. Define `local func = std.native('func');`
+2. Use `func()`
+
+Jsonnet functions are evaluated when rendering Jsonnet files, which helps avoid conflicts with template syntax.
+
+#### `env`, `must_env`
+
+`env` and `must_env` functions work the similary to template functions in JSON and YAML files. However, unlike template functions, Jsonnet functions are capable of rendering non-string values from environment variables using `std.parseInt()`, `std.parseJson()`, etc.
+
+```jsonnet
+local env = std.native('env');
+local must_env = std.native('must_env');
+{
+  foo: env('FOO', 'default value'),
+  bar: must_env('BAR'),
+  bazNumber: std.parseInt(env('BAZ_NUMBER', '0')),
+  booBool: std.parseJson(env('BOO_BOOL', 'false')),
+}
+```
+
+#### Other plugin-provided functions
+
+See [Plugins](#plugins) section.
+
 ### Deploy to Fargate
 
-If you want to deploy services to Fargate, task definitions and service definitions require some settings.
+When deploying services to Fargate, both task definitions and service definitions require specific settings.
 
 For task definitions,
 
-- requiresCompatibilities (required "FARGATE")
-- networkMode (required "awsvpc")
+- requiresCompatibilities (requires "FARGATE")
+- networkMode (requires "awsvpc")
 - cpu (required)
 - memory (required)
 - executionRoleArn (optional)
@@ -521,10 +566,10 @@ For task definitions,
 }
 ```
 
-For service-definition,
+For service-definitions,
 
-- launchType (required "FARGATE")
-- networkConfiguration (required "awsvpcConfiguration")
+- launchType (requires "FARGATE")
+- networkConfiguration (requires "awsvpcConfiguration")
 
 ```json5
 {
@@ -547,8 +592,8 @@ For service-definition,
 
 ### Fargate Spot support
 
-1. Set capacityProviders and defaultCapacityProviderStrategy to ECS cluster.
-1. If you hope to migrate existing service to use Fargate Spot, define capacityProviderStrategy into service definition as below. `ecspresso deploy --update-service` applies the settings to the service.
+1. Set `capacityProviders` and `defaultCapacityProviderStrategy` for the ECS cluster.
+1. To migrate an existing service to use Fargate Spot, define `capacityProviderStrategy` in the service definition as shown below. Use `ecspresso deploy --update-service` to apply the settings to the service.
 
 ```json
 {
@@ -571,15 +616,16 @@ For service-definition,
 
 ecspresso supports [ECS Service Connect](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/service-connect.html).
 
-You can define `serviceConnectConfiguration` in service definition files and `portMappings` attributes in task definition files.
+To configure, define `serviceConnectConfiguration` in service definitions and `portMappings` in task definitions.
 
-For more details, see also [Service Connect parameters](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/service-connect.html#service-connect-parameters)
+For more details, see [Service Connect parameters](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/service-connect.html#service-connect-parameters)
 
 ### EBS Volume support
 
-ecspresso supports managing [Amazon EBS Volumes](https://docs.aws.amazon.com/ja_jp/AmazonECS/latest/developerguide/ebs-volumes.html).
+ecspresso supports [Amazon EBS Volumes](https://docs.aws.amazon.com/ja_jp/AmazonECS/latest/developerguide/ebs-volumes.html).
 
-To use EBS volumes, define `volumeConfigurations` in service definitions, and `mountPoints` and `volumes` attributes in task definition files.
+To configure, define `volumeConfigurations` in service definitions, and `mountPoints` and `volumes` in task definitions.
+
 
 ```json
 // ecs-service-def.json
@@ -622,17 +668,17 @@ To use EBS volumes, define `volumeConfigurations` in service definitions, and `m
 
 `ecspresso run` command supports EBS volumes too.
 
-The EBS volumes attached to the standalone tasks will be deleted when the task is stopped by default. But you can keep the volumes by `--no-ebs-delete-on-termination` option.
+By default, EBS volumes attached to standalone tasks are deleted when the task stops. Use the `--no-ebs-delete-on-termination` option to preserve volumes.
 
 ```console
 $ ecspresso run --no-ebs-delete-on-termination
 ```
 
-The EBS volumes attached to the tasks run by ECS services will always be deleted when the task is stopped. This behavior is by the ECS specification, so ecspresso can't change it.
+For tasks run by ECS services, EBS volumes are always deleted when the task stops. This is an ECS specification that ecspresso cannot override.
 
 ### How to check diff and verify service/task definitions before deploy.
 
-ecspresso supports `diff` and `verify` subcommands.
+ecspresso supports `diff` and `verify` commands.
 
 #### diff
 
@@ -666,19 +712,32 @@ $ ecspresso diff
          "options": {
 ```
 
+v2.4 or later, `ecspresso diff --external` can invoke an external command. You can use the "diff" command you like.
+
+For example, use [difftastic](https://github.com/Wilfred/difftastic) (`difft`) command.
+
+```console
+$ ecspresso diff --external "difft --color=always"
+
+$ ECSPRESSO_DIFF_COMMAND="difft --color=always" ecspresso diff
+```
+
+The command should exit with status 0. If it exits with a non-zero status when two files differ (for example, `diff(1)`), you need to write a wrapper command.
+
+
 #### verify
 
 Verify resources related with service/task definitions.
 
-For example,
+For example it checks if,
 - An ECS cluster exists.
 - The target groups in service definitions match the container name and port defined in the definitions.
 - A task role and a task execution role exist and can be assumed by ecs-tasks.amazonaws.com.
 - Container images exist at the URL defined in task definitions. (Checks only for ECR or DockerHub public images.)
-- Secrets in task definitions exist and be readable.
-- Can create log streams, can put messages to the streams in specified CloudWatch log groups.
+- Secrets in task definitions exist and are readable.
+- Log streams can be created and messages can be put into the specified CloudWatch log groups streams.
 
-ecspresso verify tries to assume the task execution role defined in task definitions to verify these items. If failed to assume the role, it continues to verify with the current sessions.
+ecspresso verify tries to assume the task execution role defined in task definitions to verify these items. If it fails to assume the role, it continues to verify with the current session.
 
 ```console
 $ ecspresso verify
@@ -702,17 +761,17 @@ $ ecspresso verify
 2020/12/08 11:43:14 nginx-local/ecspresso-test Verify OK!
 ```
 
-### Manipulate ECS tasks.
+### Manipulate ECS tasks
 
-ecspresso can manipulate ECS tasks. Use `tasks` and `exec` command.
+ecspresso can manipulate ECS tasks using the  `tasks` and `exec` commands.
 
-After v2.0, These operations are provided by [ecsta](https://github.com/fujiwara/ecsta) as a library. ecsta CLI can manipulate any ECS tasks (not limited to deployed by ecspresso).
+After v2.0, These operations are provided by [ecsta](https://github.com/fujiwara/ecsta) as a library. The ecsta CLI can manipulate any ECS tasks, not limited to those deployed by ecspresso.
 
 Consider using ecsta as a CLI command.
 
 #### tasks
 
-task command lists tasks run by a service or having the same family to a task definition.
+The `task` command lists tasks run by a service or having the same family to a task definition.
 
 ```
 Flags:
@@ -724,19 +783,19 @@ Flags:
       --trace=false               trace the task
 ```
 
-When `--find` option is set, you can select a task in a list of tasks and show the task as JSON.
+The `--find` option enables task selection rom a list and displays it as JSON.
 
-`ECSPRESSO_FILTER_COMMAND` environment variable can define a command to filter tasks. For example [peco](https://github.com/peco/peco), [fzf](https://github.com/junegunn/fzf) and etc.
+The `ECSPRESSO_FILTER_COMMAND` environment variable can be set to specify a command for filtering tasks, such as [peco](https://github.com/peco/peco), [fzf](https://github.com/junegunn/fzf), etc.
 
 ```console
 $ ECSPRESSO_FILTER_COMMAND=peco ecspresso tasks --find
 ```
 
-When `--stop` option is set, you can select a task in a list of tasks and stop the task.
+The `--stop` option allows for task selecttion and stopping from a list.
 
 #### exec
 
-exec command executes a command on task.
+The `exec` command executes a command on a task.
 
 [session-manager-plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html) is required in PATH.
 
@@ -749,34 +808,41 @@ Flags:
       --local-port=0              local port number
       --port=0                    remote port number (required for --port-forward)
       --host=                     remote host (required for --port-forward)
+      -L                          short expression of local-port:host:port
 ```
 
 If `--id` is not set, the command shows a list of tasks to select a task to execute.
 
-`ECSPRESSO_FILTER_COMMAND` environment variable works the same as tasks command.
+The `ECSPRESSO_FILTER_COMMAND` environment variable works the same as with the `tasks` command.
 
-See also the official document [Using Amazon ECS Exec for debugging](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-exec.html).
+See also the official documentation [Using Amazon ECS Exec for debugging](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-exec.html).
 
 #### port forwarding
 
-`ecspresso exec --port-forward` forwards local port to ECS tasks port.
+The `--port-forward` option enables port forwarding from a local port to an ECS task's port.
 
 ```
 $ ecspresso exec --port-forward --port 80 --local-port 8080
 ...
 ```
 
-If `--id` is not set, the command shows a list of tasks to select a task to forward port.
+If `--id` is not set, the command shows a list of tasks to select for port forwarding.
 
-When `--local-port` is not specified, use the ephemeral port for local port.
+When `--local-port` is not specified, an ephemeral port is used as the local port.
+
+The `-L` option is a short expression for `local-port:host:port`. For example, `-L 8080:example.com:80` is equivalent to `--local-port 8080 --host example.com --port 80`.
+
+```
+$ ecspresso exec --port-forward -L 8080:example.com:80
+```
 
 ## Plugins
 
-ecspresso has some plugins to extend template functions.
+ecspresso supports plugins to extend template functions and Jsonnet native functions.
 
 ### tfstate
 
-The tfstate plugin introduces template functions `tfstate` and `tfstatef`.
+The tfstate plugin introduces the `tfstate` and `tfstatef` template functions.
 
 ecspresso.yml
 ```yaml
@@ -808,15 +874,37 @@ ecs-service-def.json
 }
 ```
 
-`{{ tfstate "resource_type.resource_name.attr" }}` will expand to an attribute value of the resource in tfstate.
+`{{ tfstate "resource_type.resource_name.attr" }}` will expand to the attribute value of the resource in tfstate.
 
-`{{ tfstatef "resource_type.resource_name['%s'].attr" "index" }}` is similar to `{{ tfstatef "resource_type.resource_name['index'].attr" }}`. This function is useful to build a resource address with environment variables.
+`{{ tfstatef "resource_type.resource_name['%s'].attr" "index" }}` is similar to `{{ tfstatef "resource_type.resource_name['index'].attr" }}`. This function is useful for build a resource addresses with environment variables.
 
 ```
 {{ tfstatef `aws_subnet.ecs['%s'].id` (must_env `SERVICE`) }}
 ```
 
-#### Supported tfstate URL format
+#### tfstate Jsonnet function
+
+`tfstate` Jsonnet function works the same as template function in JSON and YAML files.
+`tfstatef` Jsonnet function is not provided. Use `std.format()` or interpolation instead.
+
+```jsonnet
+local tfstate = std.native('tfstate');
+{
+  networkConfiguration: {
+    awsvpcConfiguration: {
+      subnets: [
+        tfstate('aws_subnet.private["%s"].id' % 'az-z'),
+        tfstate(std.format('aws_subnet.private["%s"].id', 'az-b')),
+      ],
+      securityGroups: [
+        tfstate('data.aws_security_group.default.id'),
+      ]
+    }
+  }
+}
+```
+
+#### Supported tfstate URL formats
 
 - Local file `file://path/to/terraform.tfstate`
 - HTTP/HTTPS `https://example.com/terraform.tfstate`
@@ -830,7 +918,7 @@ This plugin uses [tfstate-lookup](https://github.com/fujiwara/tfstate-lookup) to
 
 #### Multiple tfstate support
 
-`func_prefix` adds a prefix to template function names for each plugin configuration.
+`func_prefix` adds prefixes to template function names for each plugin configuration, enabling support for multiple tfstate files.
 
 ```yaml
 # ecspresso.yml
@@ -845,7 +933,7 @@ plugins:
      func_prefix: second_
 ```
 
-So in templates, functions are called with prefixes.
+In templates, functions are called with the specified prefixes.
 
 ```json
 [
@@ -854,11 +942,22 @@ So in templates, functions are called with prefixes.
 ]
 ```
 
+Similar features are also supported for Jsonnet.
+
+```jsonnet
+local first_tfstate = std.native('first_tfstate'); // func_prefix: first_
+local second_tfstate = std.native('second_tfstate'); // func_prefix: second_
+[
+  first_tfstate('aws_s3_bucket.main.arn'),
+  second_tfstate('aws_s3_bucket.main.arn'),
+]
+```
+
 ### CloudFormation
 
-The cloudformation plugin introduces template functions `cfn_output` and `cfn_export`.
+The cloudformation plugin introduces the `cfn_output` and `cfn_export` template functions.
 
-An example of CloudFormation stack template defines Outputs and Exports.
+An example of a CloudFormation stack template defining Outputs and Exports.
 
 ```yaml
 # StackName: ECS-ecspresso
@@ -873,7 +972,7 @@ Outputs:
       Name: !Sub ${AWS::StackName}-EcsSecurityGroupId
 ```
 
-Load cloudformation plugin in a config file.
+Load the cloudformation plugin in a config file.
 
 ecspresso.yml
 ```yaml
@@ -882,8 +981,8 @@ plugins:
   - name: cloudformation
 ```
 
-`cfn_output StackName OutputKey` lookups OutputValue of OutputKey in the StackName.
-`cfn_export ExportName` lookups exported value by name.
+`cfn_output StackName OutputKey` looks up the OutputValue of OutputKey in the StackName.
+`cfn_export ExportName` looks up the exported value by name.
 
 ecs-service-def.json
 ```json
@@ -902,17 +1001,36 @@ ecs-service-def.json
 }
 ```
 
-### Lookups ssm parameter store
+#### Jsonnet functions `cfn_output`, `cfn_export`
 
-The template function `ssm` reads parameters from AWS Systems Manager(SSM) Parameter Store.
+Similar features are also supported for Jsonnet.
 
-Suppose ssm parameter store has the following parameters:
+
+```jsonnet
+local cfn_output = std.native('cfn_output');
+local cfn_export = std.native('cfn_export');
+{
+  subnets: [
+    cfn_output('ECS-ecspresso', 'SubnetAz1'),
+    cfn_output('ECS-ecspresso', 'SubnetAz2'),
+  ],
+  securityGroups: [
+    cfn_export('ECS-ecspresso-EcsSecurityGroupId'),
+  ],
+}
+```
+
+### SSM Parameter Store lookups
+
+The `ssm` template function reads parameters from AWS Systems Manager (SSM) Parameter Store.
+
+Given SSM Parameter Store has the following parameters:
 
 - name: '/path/to/string', type: String, value: "ImString"
 - name: '/path/to/stringlist', type: StringList, value: "ImStringList0,ImStringList1"
 - name: '/path/to/securestring', type: SecureString, value: "ImSecureString"
 
-Then this template,
+This template,
 
 ```json
 {
@@ -922,19 +1040,33 @@ Then this template,
 }
 ```
 
-will be rendered into this.
+will be rendered as:
 
 ```json
 {
   "string": "ImString",
   "stringlist": "ImStringList1",
-  "securestring": "ImSecureStriing"
+  "securestring": "ImSecureString"
+}
+```
+
+#### Jsonnet functions `ssm`, `ssm_list`
+
+The `ssm` function works the same as template function. For string list parameters, use `ssm_list` to specify the index.
+
+```jsonnet
+local ssm = std.native('ssm');
+local ssm_list = std.native('ssm_list');
+{
+  string: ssm('/path/to/string'),
+  stringlist: ssm_list('/path/to/stringlist', 1),
+  securestring: ssm('/path/to/securestring'),
 }
 ```
 
 ### Resolve secretsmanager secret ARN
 
-The template function `secretsmanager_arn` resolves secretsmanager secret ARN by secret name.
+The `secretsmanager_arn` template function resolves the Secrets Manager secret ARN by secret name.
 
 ```json
   "secrets": [
@@ -945,7 +1077,7 @@ The template function `secretsmanager_arn` resolves secretsmanager secret ARN by
   ]
 ```
 
-will be rendered into this.
+will be rendered as:
 
 ```json
   "secrets": [
@@ -956,7 +1088,23 @@ will be rendered into this.
   ]
 ```
 
-## LICENCE
+#### Jsonnet function `secretsmanager_arn`
+
+The `secretsmanager_arn` function works the same as template function.
+
+```jsonnet
+local secretsmanager_arn = std.native('secretsmanager_arn');
+{
+  secrets: [
+    {
+      name: "FOO",
+      valueFrom: secretsmanager_arn('foo'),
+    }
+  ]
+}
+```
+
+## LICENSE
 
 MIT
 

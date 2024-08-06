@@ -16,6 +16,7 @@ type CLIOptions struct {
 	AssumeRoleARN  string            `help:"the ARN of the role to assume" default:"" env:"ECSPRESSO_ASSUME_ROLE_ARN"`
 	Timeout        *time.Duration    `help:"timeout. Override in a configuration file." env:"ECSPRESSO_TIMEOUT"`
 	FilterCommand  string            `help:"filter command" env:"ECSPRESSO_FILTER_COMMAND"`
+	Color          bool              `help:"enable colorized output" env:"ECSPRESSO_COLOR" default:"true" negatable:""`
 
 	Appspec    *AppSpecOption    `cmd:"" help:"output AppSpec YAML for CodeDeploy to STDOUT"`
 	Delete     *DeleteOption     `cmd:"" help:"delete service"`
@@ -142,7 +143,7 @@ func dispatchCLI(ctx context.Context, sub string, usage func(), opts *CLIOptions
 	case "deregister":
 		return app.Deregister(ctx, *opts.Deregister)
 	case "revisions":
-		return app.Revesions(ctx, *opts.Revisions)
+		return app.Revisions(ctx, *opts.Revisions)
 	case "init":
 		return app.Init(ctx, *opts.Init)
 	case "diff":
