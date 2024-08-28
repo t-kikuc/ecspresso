@@ -771,7 +771,7 @@ Consider using ecsta as a CLI command.
 
 #### tasks
 
-The `task` command lists tasks run by a service or having the same family to a task definition.
+The `tasks` command lists tasks run by a service or having the same family to a task definition.
 
 ```
 Flags:
