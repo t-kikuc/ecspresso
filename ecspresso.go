@@ -94,25 +94,9 @@ func (d *App) newServiceFromTypes(ctx context.Context, in types.Service) (*Servi
 	d.Log("[DEBUG] deployment: %s %s", *dp.Id, *dp.Status)
 
 	// ServiceConnect
-	scc := dp.ServiceConnectConfiguration
-	sv.ServiceConnectConfiguration = scc
-	if scc != nil {
-		// resolve sd namespace arn to name
-		id := arnToName(aws.ToString(scc.Namespace))
-		res, err := d.sd.GetNamespace(ctx, &servicediscovery.GetNamespaceInput{
-			Id: &id,
-		})
-		if err != nil {
-			var oe *smithy.OperationError
-			if errors.As(err, &oe) {
-				d.Log("[WARNING] failed to get namespace: %s", oe)
-			} else {
-				return nil, fmt.Errorf("failed to get namespace: %w", err)
-			}
-		}
-		if res.Namespace != nil {
-			scc.Namespace = res.Namespace.Name
-		}
+	if dp.ServiceConnectConfiguration != nil {
+		d.Log("[DEBUG] ServiceConnectConfiguration: %#v", dp.ServiceConnectConfiguration)
+		sv.ServiceConnectConfiguration = dp.ServiceConnectConfiguration
 	}
 
 	// VolumeConfigurations
@@ -469,7 +453,7 @@ func (d *App) findLatestTaskDefinitionArn(ctx context.Context, family string) (s
 		},
 	)
 	if err != nil {
-		return "", fmt.Errorf("failed to list taskdefinitions: %w", err)
+		return "", fmt.Errorf("failed to list task definitions: %w", err)
 	}
 	if len(out.TaskDefinitionArns) == 0 {
 		return "", ErrNotFound(fmt.Sprintf("no task definitions family %s are found", family))
