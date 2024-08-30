@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/aws/aws-sdk-go-v2/service/applicationautoscaling"
 	aasTypes "github.com/aws/aws-sdk-go-v2/service/applicationautoscaling/types"
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
@@ -95,32 +94,9 @@ func (d *App) newServiceFromTypes(ctx context.Context, in types.Service) (*Servi
 	d.Log("[DEBUG] deployment: %s %s", *dp.Id, *dp.Status)
 
 	// ServiceConnect
-	scc := dp.ServiceConnectConfiguration
-	sv.ServiceConnectConfiguration = scc
-	if scc != nil {
-		d.Log("[DEBUG] ServiceConnectConfiguration.Namespace: %s", *scc.Namespace)
-		if _, err := arn.Parse(*scc.Namespace); err != nil {
-			// is name (do nothing)
-		} else {
-			// is ARN, resolve name
-			id := arnToName(*scc.Namespace)
-			d.Log("[DEBUG] resolving namespace name by %s", id)
-			res, err := d.sd.GetNamespace(ctx, &servicediscovery.GetNamespaceInput{
-				Id: &id,
-			})
-			if err != nil {
-				var oe *smithy.OperationError
-				if errors.As(err, &oe) {
-					d.Log("[WARNING] failed to get namespace: %s", oe)
-				} else {
-					return nil, fmt.Errorf("failed to get namespace: %w", err)
-				}
-			}
-			if res != nil && res.Namespace != nil {
-				d.Log("[DEBUG] resolved namespace name: %s", *res.Namespace.Name)
-				scc.Namespace = res.Namespace.Name
-			}
-		}
+	if dp.ServiceConnectConfiguration != nil {
+		d.Log("[DEBUG] ServiceConnectConfiguration: %#v", dp.ServiceConnectConfiguration)
+		sv.ServiceConnectConfiguration = dp.ServiceConnectConfiguration
 	}
 
 	// VolumeConfigurations
