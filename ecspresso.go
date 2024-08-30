@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/aws/aws-sdk-go-v2/service/applicationautoscaling"
 	aasTypes "github.com/aws/aws-sdk-go-v2/service/applicationautoscaling/types"
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
@@ -97,21 +98,28 @@ func (d *App) newServiceFromTypes(ctx context.Context, in types.Service) (*Servi
 	scc := dp.ServiceConnectConfiguration
 	sv.ServiceConnectConfiguration = scc
 	if scc != nil {
-		// resolve sd namespace arn to name
-		id := arnToName(aws.ToString(scc.Namespace))
-		res, err := d.sd.GetNamespace(ctx, &servicediscovery.GetNamespaceInput{
-			Id: &id,
-		})
-		if err != nil {
-			var oe *smithy.OperationError
-			if errors.As(err, &oe) {
-				d.Log("[WARNING] failed to get namespace: %s", oe)
-			} else {
-				return nil, fmt.Errorf("failed to get namespace: %w", err)
+		d.Log("[DEBUG] ServiceConnectConfiguration.Namespace: %s", *scc.Namespace)
+		if _, err := arn.Parse(*scc.Namespace); err != nil {
+			// is name (do nothing)
+		} else {
+			// is ARN, resolve name
+			id := arnToName(*scc.Namespace)
+			d.Log("[DEBUG] resolving namespace name by %s", id)
+			res, err := d.sd.GetNamespace(ctx, &servicediscovery.GetNamespaceInput{
+				Id: &id,
+			})
+			if err != nil {
+				var oe *smithy.OperationError
+				if errors.As(err, &oe) {
+					d.Log("[WARNING] failed to get namespace: %s", oe)
+				} else {
+					return nil, fmt.Errorf("failed to get namespace: %w", err)
+				}
 			}
-		}
-		if res.Namespace != nil {
-			scc.Namespace = res.Namespace.Name
+			if res != nil && res.Namespace != nil {
+				d.Log("[DEBUG] resolved namespace name: %s", *res.Namespace.Name)
+				scc.Namespace = res.Namespace.Name
+			}
 		}
 	}
 
@@ -469,7 +477,7 @@ func (d *App) findLatestTaskDefinitionArn(ctx context.Context, family string) (s
 		},
 	)
 	if err != nil {
-		return "", fmt.Errorf("failed to list taskdefinitions: %w", err)
+		return "", fmt.Errorf("failed to list task definitions: %w", err)
 	}
 	if len(out.TaskDefinitionArns) == 0 {
 		return "", ErrNotFound(fmt.Sprintf("no task definitions family %s are found", family))
