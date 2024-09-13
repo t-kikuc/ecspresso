@@ -68,16 +68,21 @@ func (d *App) Run(ctx context.Context, opt RunOption) error {
 		return err
 	}
 	d.Log("Task definition ARN: %s", tdArn)
-	if opt.DryRun {
-		d.Log("DRY RUN OK")
-		return nil
-	}
+
 	td, err := d.DescribeTaskDefinition(ctx, tdArn)
 	if err != nil {
 		return err
 	}
 	watchContainer := containerOf(td, &opt.WatchContainer)
-	d.Log("Watch container: %s", *watchContainer.Name)
+	if watchContainer == nil {
+		return fmt.Errorf("container %s not found in the task definition", opt.WatchContainer)
+	}
+	d.Log("Watch container: %s", aws.ToString(watchContainer.Name))
+
+	if opt.DryRun {
+		d.Log("DRY RUN OK")
+		return nil
+	}
 
 	task, err := d.RunTask(ctx, tdArn, &ov, &opt)
 	if err != nil {
