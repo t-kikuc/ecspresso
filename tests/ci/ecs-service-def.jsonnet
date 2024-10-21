@@ -55,6 +55,10 @@ local isCodeDeploy = env('DEPLOYMENT_CONTROLLER', 'ECS') == 'CODE_DEPLOY';
   platformVersion: '1.4.0',
   schedulingStrategy: 'REPLICA',
   serviceRegistries: [],
+  serviceConnectConfiguration: {
+    enabled: true,
+    namespace: 'ecspresso-test',
+  },
   propagateTags: 'SERVICE',
   tags: [
     {

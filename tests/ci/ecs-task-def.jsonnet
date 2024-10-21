@@ -68,7 +68,7 @@ local isCodeDeploy = env('DEPLOYMENT_CONTROLLER', 'ECS') == 'CODE_DEPLOY';
     },
     {
       essential: true,
-      image: '{{ must_env `AWS_ACCOUNT_ID` }}.dkr.ecr.us-east-1.amazonaws.com/bash:latest',
+      image: '{{ must_env `AWS_ACCOUNT_ID` }}.dkr.ecr.ap-northeast-1.amazonaws.com/bash:latest',
       logConfiguration: {
         logDriver: 'awslogs',
         options: {
@@ -106,10 +106,13 @@ local isCodeDeploy = env('DEPLOYMENT_CONTROLLER', 'ECS') == 'CODE_DEPLOY';
           sourceVolume: 'ebs',
         },
       ],
+      restartPolicy: {
+        enabled: true,
+        ignoredExitCodes: [ 0 ],
+        restartAttemptPeriod: 60,
+      },
       command: [
-        'tail',
-        '-f',
-        '/dev/null',
+        'bash', '-c', 'timeout --signal=9 --preserve-status 90 tail -f /dev/null',
       ],
     },
   ],
