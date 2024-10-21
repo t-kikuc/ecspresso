@@ -1,6 +1,6 @@
 module github.com/kayac/ecspresso/v2
 
-go 1.18
+go 1.21
 
 require (
 	github.com/Songmu/prompter v0.5.1
