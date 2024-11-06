@@ -68,7 +68,7 @@ func (d *App) Run(ctx context.Context, opt RunOption) error {
 		return err
 	}
 	if tdForRun.Arn == "" && tdForRun.TaskDefinitionInput != nil {
-		d.Log("Task definition family %s will be registered", *tdForRun.TaskDefinitionInput.Family)
+		d.Log("Task definition family %s will be registered", aws.ToString(tdForRun.TaskDefinitionInput.Family))
 	} else {
 		d.Log("Task definition ARN: %s", tdForRun.Arn)
 		var err error

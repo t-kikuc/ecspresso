@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/smithy-go/middleware"
 	"github.com/kayac/ecspresso/v2"
@@ -131,7 +132,7 @@ func TestTaskDefinitionArnForRun(t *testing.T) {
 					t.Errorf("%s %s expected %s, got %s", config, args, s.arn, name)
 				}
 			} else {
-				family := *td.TaskDefinitionInput.Family
+				family := aws.ToString(td.TaskDefinitionInput.Family)
 				if family != s.family {
 					t.Errorf("%s %s expected %s, got %s", config, args, s.family, family)
 				}
