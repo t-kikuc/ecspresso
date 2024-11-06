@@ -63,17 +63,22 @@ func (d *App) Run(ctx context.Context, opt RunOption) error {
 	d.Log("[DEBUG] Overrides")
 	d.LogJSON(ov)
 
-	tdArn, err := d.taskDefinitionArnForRun(ctx, opt)
+	tdForRun, err := d.resolveTaskDefinitionForRun(ctx, opt)
 	if err != nil {
 		return err
 	}
-	d.Log("Task definition ARN: %s", tdArn)
-
-	td, err := d.DescribeTaskDefinition(ctx, tdArn)
-	if err != nil {
-		return err
+	if tdForRun.Arn == "" && tdForRun.TaskDefinitionInput != nil {
+		d.Log("Task definition family %s will be registered", *tdForRun.TaskDefinitionInput.Family)
+	} else {
+		d.Log("Task definition ARN: %s", tdForRun.Arn)
+		var err error
+		td, err := d.DescribeTaskDefinition(ctx, tdForRun.Arn)
+		if err != nil {
+			return err
+		}
+		tdForRun.TaskDefinitionInput = td
 	}
-	watchContainer := containerOf(td, &opt.WatchContainer)
+	watchContainer := containerOf(tdForRun.TaskDefinitionInput, &opt.WatchContainer)
 	if watchContainer == nil {
 		return fmt.Errorf("container %s not found in the task definition", opt.WatchContainer)
 	}
@@ -84,7 +89,7 @@ func (d *App) Run(ctx context.Context, opt RunOption) error {
 		return nil
 	}
 
-	task, err := d.RunTask(ctx, tdArn, &ov, &opt)
+	task, err := d.RunTask(ctx, tdForRun.Arn, &ov, &opt)
 	if err != nil {
 		return err
 	}
@@ -239,42 +244,47 @@ func (d *App) waitTask(ctx context.Context, task *types.Task, untilRunning bool)
 	return nil
 }
 
-func (d *App) taskDefinitionArnForRun(ctx context.Context, opt RunOption) (string, error) {
+type taskDefinitionForRun struct {
+	Arn                 string
+	TaskDefinitionInput *TaskDefinitionInput
+}
+
+func (d *App) resolveTaskDefinitionForRun(ctx context.Context, opt RunOption) (*taskDefinitionForRun, error) {
 	switch {
 	case *opt.Revision > 0:
 		if opt.LatestTaskDefinition {
-			return "", ErrConflictOptions("revision and latest-task-definition are exclusive")
+			return nil, ErrConflictOptions("revision and latest-task-definition are exclusive")
 		}
 		family, _, err := d.resolveTaskdefinition(ctx)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
-		return fmt.Sprintf("%s:%d", family, *opt.Revision), nil
+		return &taskDefinitionForRun{Arn: fmt.Sprintf("%s:%d", family, *opt.Revision)}, nil
 	case opt.LatestTaskDefinition:
 		family, _, err := d.resolveTaskdefinition(ctx)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		d.Log("Revision is not specified. Use latest task definition family " + family)
 		latestTdArn, err := d.findLatestTaskDefinitionArn(ctx, family)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
-		return latestTdArn, nil
+		return &taskDefinitionForRun{Arn: latestTdArn}, nil
 	case opt.SkipTaskDefinition:
 		family, rev, err := d.resolveTaskdefinition(ctx)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		if rev != "" {
-			return fmt.Sprintf("%s:%s", family, rev), nil
+			return &taskDefinitionForRun{Arn: fmt.Sprintf("%s:%s", family, rev)}, nil
 		}
 		d.Log("Revision is not specified. Use latest task definition family " + family)
 		latestTdArn, err := d.findLatestTaskDefinitionArn(ctx, family)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
-		return latestTdArn, nil
+		return &taskDefinitionForRun{Arn: latestTdArn}, nil
 	default:
 		tdPath := opt.TaskDefinition
 		if tdPath == "" {
@@ -282,20 +292,20 @@ func (d *App) taskDefinitionArnForRun(ctx context.Context, opt RunOption) (strin
 		}
 		in, err := d.LoadTaskDefinition(tdPath)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		{
 			b, _ := MarshalJSONForAPI(in)
 			d.Log("[DEBUG] task definition: %s", string(b))
 		}
 		if opt.DryRun {
-			return fmt.Sprintf("family %s will be registered", *in.Family), nil
+			return &taskDefinitionForRun{Arn: "", TaskDefinitionInput: in}, nil
 		}
 		newTd, err := d.RegisterTaskDefinition(ctx, in)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
-		return *newTd.TaskDefinitionArn, nil
+		return &taskDefinitionForRun{Arn: *newTd.TaskDefinitionArn}, nil
 	}
 }
 

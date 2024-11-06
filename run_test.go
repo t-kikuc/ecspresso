@@ -11,7 +11,8 @@ import (
 
 type taskDefinitionArnForRunSuite struct {
 	opts     []string
-	td       string
+	arn      string
+	family   string
 	raiseErr bool
 }
 
@@ -19,68 +20,72 @@ var testTaskDefinitionArnForRunSuite = map[string][]taskDefinitionArnForRunSuite
 	"tests/run-with-sv.yaml": {
 		{
 			opts: []string{"--skip-task-definition"},
-			td:   "katsubushi:39",
+			arn:  "katsubushi:39",
 		},
 		{
 			opts: []string{"--skip-task-definition", "--revision=42"},
-			td:   "katsubushi:42",
+			arn:  "katsubushi:42",
 		},
 		{
 			opts: []string{"--latest-task-definition"},
-			td:   "katsubushi:45",
+			arn:  "katsubushi:45",
 		},
 		{
 			opts: []string{"--latest-task-definition", "--skip-task-definition"},
-			td:   "katsubushi:45",
+			arn:  "katsubushi:45",
 		},
 		{
 			opts:     []string{"--latest-task-definition", "--skip-task-definition", "--revision=41"},
-			td:       "katsubushi:41",
+			arn:      "katsubushi:41",
 			raiseErr: true, // latest-task-definition and revision are exclusive
 		},
 		{
 			opts:     []string{"--latest-task-definition", "--revision=41"},
-			td:       "katsubushi:41",
+			arn:      "katsubushi:41",
 			raiseErr: true, // latest-task-definition and revision are exclusive
 		},
 		{
-			opts: nil,
-			td:   "family katsubushi will be registered",
+			opts:   nil,
+			arn:    "",
+			family: "katsubushi",
 		},
 		{
-			opts: []string{"--task-def=tests/run-test-td.json"},
-			td:   "family test will be registered",
+			opts:   []string{"--task-def=tests/run-test-td.json"},
+			arn:    "",
+			family: "test",
 		},
 	},
 	"tests/run-without-sv.yaml": {
 		{
 			opts: []string{"--skip-task-definition"},
-			td:   "katsubushi:45",
+			arn:  "katsubushi:45",
 		},
 		{
 			opts: []string{"--skip-task-definition", "--revision=42"},
-			td:   "katsubushi:42",
+			arn:  "katsubushi:42",
 		},
 		{
 			opts: []string{"--latest-task-definition"},
-			td:   "katsubushi:45",
+			arn:  "katsubushi:45",
 		},
 		{
 			opts: []string{"--latest-task-definition", "--skip-task-definition"},
-			td:   "katsubushi:45",
+			arn:  "katsubushi:45",
 		},
 		{
 			opts:     []string{"--latest-task-definition", "--revision=42"},
-			td:       "katsubushi:42",
+			arn:      "katsubushi:42",
 			raiseErr: true, // latest-task-definition and revision are exclusive
 		},
 		{
-			opts: nil,
-			td:   "family katsubushi will be registered",
+			opts:   nil,
+			arn:    "",
+			family: "katsubushi",
 		},
 		{
-			opts: []string{"--task-def=tests/run-test-td.json"},
-			td:   "family test will be registered",
+			opts:   []string{"--task-def=tests/run-test-td.json"},
+			arn:    "",
+			family: "test",
 		},
 	},
 }
@@ -110,7 +115,7 @@ func TestTaskDefinitionArnForRun(t *testing.T) {
 				t.Error(err)
 			}
 			opts := *cliopts.Run
-			tdArn, err := app.TaskDefinitionArnForRun(ctx, opts)
+			td, err := app.ResolveTaskDefinitionForRun(ctx, opts)
 			if s.raiseErr {
 				if err == nil {
 					t.Errorf("%s %s expected error, but got nil", config, args)
@@ -121,8 +126,15 @@ func TestTaskDefinitionArnForRun(t *testing.T) {
 				t.Errorf("%s %s unexpected error: %s", config, args, err)
 				continue
 			}
-			if td := ecspresso.ArnToName(tdArn); td != s.td {
-				t.Errorf("%s %s expected %s, got %s", config, args, s.td, td)
+			if td.Arn != "" {
+				if name := ecspresso.ArnToName(td.Arn); name != s.arn {
+					t.Errorf("%s %s expected %s, got %s", config, args, s.arn, name)
+				}
+			} else {
+				family := *td.TaskDefinitionInput.Family
+				if family != s.family {
+					t.Errorf("%s %s expected %s, got %s", config, args, s.family, family)
+				}
 			}
 		}
 	}
