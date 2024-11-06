@@ -48,8 +48,10 @@ func ResetAWSV2ConfigLoadOptionsFunc() {
 	awsv2ConfigLoadOptionsFunc = nil
 }
 
-func (d *App) TaskDefinitionArnForRun(ctx context.Context, opt RunOption) (string, error) {
-	return d.taskDefinitionArnForRun(ctx, opt)
+type TaskDefinitionForRun = taskDefinitionForRun
+
+func (d *App) ResolveTaskDefinitionForRun(ctx context.Context, opt RunOption) (*taskDefinitionForRun, error) {
+	return d.resolveTaskDefinitionForRun(ctx, opt)
 }
 
 func (opt *DiffOption) SetWriter(w io.Writer) {
