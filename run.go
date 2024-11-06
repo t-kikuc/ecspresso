@@ -71,9 +71,6 @@ func (d *App) Run(ctx context.Context, opt RunOption) error {
 		d.Log("Task definition family %s will be registered", *tdForRun.TaskDefinitionInput.Family)
 	} else {
 		d.Log("Task definition ARN: %s", tdForRun.Arn)
-	}
-
-	if tdForRun.TaskDefinitionInput == nil {
 		var err error
 		td, err := d.DescribeTaskDefinition(ctx, tdForRun.Arn)
 		if err != nil {
