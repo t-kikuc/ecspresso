@@ -95,4 +95,11 @@ local isCodeDeploy = env('DEPLOYMENT_CONTROLLER', 'ECS') == 'CODE_DEPLOY';
       name: 'ebs',
     },
   ],
+  vpcLatticeConfigurations: [
+    {
+      portName: 'nginx-http',
+      roleArn: 'arn:aws:iam::%s:role/ecsInfrastructureRole' % must_env('AWS_ACCOUNT_ID'),
+      targetGroupArn: 'arn:aws:vpc-lattice:ap-northeast-1:%s:targetgroup/tg-009147df264a0bacb' % must_env('AWS_ACCOUNT_ID'),
+    },
+  ],
 }

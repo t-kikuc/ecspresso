@@ -45,6 +45,7 @@ local isCodeDeploy = env('DEPLOYMENT_CONTROLLER', 'ECS') == 'CODE_DEPLOY';
       name: 'nginx',
       portMappings: [
         {
+          name: 'nginx-http',
           containerPort: 80,
           hostPort: 80,
           protocol: 'tcp',
@@ -78,6 +79,13 @@ local isCodeDeploy = env('DEPLOYMENT_CONTROLLER', 'ECS') == 'CODE_DEPLOY';
         },
       },
       name: 'bash',
+      portMappings: [
+        {
+          name: 'bash-http-proxy',
+          containerPort: 8080,
+          protocol: 'tcp',
+        },
+      ],
       secrets: [
         {
           name: 'FOO',
@@ -120,7 +128,7 @@ local isCodeDeploy = env('DEPLOYMENT_CONTROLLER', 'ECS') == 'CODE_DEPLOY';
   ephemeralStorage: {
     sizeInGiB: 50,
   },
-  executionRoleArn: 'arn:aws:iam::{{must_env `AWS_ACCOUNT_ID`}}:role/ecsTaskRole',
+  executionRoleArn: 'arn:aws:iam::{{must_env `AWS_ACCOUNT_ID`}}:role/ecsTaskExecutionRole',
   family: 'ecspresso-test',
   memory: '512',
   networkMode: 'awsvpc',
