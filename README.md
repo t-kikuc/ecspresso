@@ -696,7 +696,6 @@ ecspresso supports [VPC Lattice](https://aws.amazon.com/vpc/lattice/) integratio
                     "appProtocol": "http"
                 }
             ],
-            // ...
 ```
 
 2. Define `vpcLatticeConfigurations` in the service definition. The `portName`, `roleArn`, and `targetGroupArn` fields are required.`
@@ -716,7 +715,6 @@ ecspresso supports [VPC Lattice](https://aws.amazon.com/vpc/lattice/) integratio
       "targetGroupArn": "arn:aws:vpc-lattice:ap-northeast-1:123456789012:targetgroup/tg-009147df264a0bacb"
     }
   ],
-  // ...
 ```
 
 ecspresso doesn't create or modify any VPC Lattice resources. You must create and associate a VPC Lattice target group with the ECS service.
