@@ -57,6 +57,7 @@ type Service struct {
 	types.Service
 	ServiceConnectConfiguration *types.ServiceConnectConfiguration
 	VolumeConfigurations        []types.ServiceVolumeConfiguration
+	VpcLatticeConfigurations    []types.VpcLatticeConfiguration
 	DesiredCount                *int32
 }
 
@@ -103,6 +104,12 @@ func (d *App) newServiceFromTypes(ctx context.Context, in types.Service) (*Servi
 	if dp.VolumeConfigurations != nil {
 		d.Log("[DEBUG] VolumeConfigurations: %#v", dp.VolumeConfigurations)
 		sv.VolumeConfigurations = dp.VolumeConfigurations
+	}
+
+	// VPC Lattice
+	if dp.VpcLatticeConfigurations != nil {
+		d.Log("[DEBUG] VpcLatticeConfigurations: %#v", dp.VpcLatticeConfigurations)
+		sv.VpcLatticeConfigurations = dp.VpcLatticeConfigurations
 	}
 
 	return &sv, nil

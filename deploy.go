@@ -212,6 +212,7 @@ func svToUpdateServiceInput(sv *Service) *ecs.UpdateServiceInput {
 		ServiceConnectConfiguration:   sv.ServiceConnectConfiguration,
 		ServiceRegistries:             sv.ServiceRegistries,
 		VolumeConfigurations:          sv.VolumeConfigurations,
+		VpcLatticeConfigurations:      sv.VpcLatticeConfigurations,
 	}
 	if sv.SchedulingStrategy == types.SchedulingStrategyDaemon {
 		in.PlacementStrategy = nil
