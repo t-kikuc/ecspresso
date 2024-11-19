@@ -676,6 +676,51 @@ $ ecspresso run --no-ebs-delete-on-termination
 
 For tasks run by ECS services, EBS volumes are always deleted when the task stops. This is an ECS specification that ecspresso cannot override.
 
+
+### VPC Lattice support
+
+ecspresso supports [VPC Lattice](https://aws.amazon.com/vpc/lattice/) integration.
+
+1. Define `portMappings` in the task definition. The `name` field is required.
+```json
+{
+    "containerDefinitions": [
+        {
+            "name": "webserver",
+            "portMappings": [
+                {
+                    "name": "web-80-tcp",
+                    "containerPort": 80,
+                    "hostPort": 80,
+                    "protocol": "tcp",
+                    "appProtocol": "http"
+                }
+            ],
+```
+
+2. Define `vpcLatticeConfigurations` in the service definition. The `portName`, `roleArn`, and `targetGroupArn` fields are required.`
+
+- The `portName` must match the `name` field of the `portMappings` in the task definition.
+- The `roleArn` is the IAM role that the ECS service assumes to call the VPC Lattice API.
+  - The role must have the `ecs.amazonaws.com` service principal.
+  - The role should have the `AmazonECSInfrastructureRolePolicyForVpcLattice` policy or equivalent permissions.
+- The `targetGroupArn` is the ARN of the VPC Lattice target group.
+
+```json
+{
+  "vpcLatticeConfigurations": [
+    {
+      "portName": "web-80-tcp",
+      "roleArn": "arn:aws:iam::123456789012:role/ecsInfrastructureRole",
+      "targetGroupArn": "arn:aws:vpc-lattice:ap-northeast-1:123456789012:targetgroup/tg-009147df264a0bacb"
+    }
+  ],
+```
+
+ecspresso doesn't create or modify any VPC Lattice resources. You must create and associate a VPC Lattice target group with the ECS service.
+
+See also [Use Amazon VPC Lattice to connect, observe, and secure your Amazon ECS services](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-vpc-lattice.html).
+
 ### How to check diff and verify service/task definitions before deploy.
 
 ecspresso supports `diff` and `verify` commands.
