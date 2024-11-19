@@ -23,6 +23,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/servicediscovery"
+	"github.com/aws/aws-sdk-go-v2/service/vpclattice"
 	"github.com/aws/smithy-go"
 	"github.com/goccy/go-yaml"
 	"github.com/samber/lo"
@@ -130,6 +131,7 @@ type App struct {
 	iam         *iam.Client
 	elbv2       *elasticloadbalancingv2.Client
 	sd          *servicediscovery.Client
+	lattice     *vpclattice.Client
 	verifier    *verifier
 
 	config *Config
@@ -206,6 +208,7 @@ func New(ctx context.Context, opt *CLIOptions, newAppOptions ...AppOption) (*App
 		iam:         iam.NewFromConfig(conf.awsv2Config),
 		elbv2:       elasticloadbalancingv2.NewFromConfig(conf.awsv2Config),
 		sd:          servicediscovery.NewFromConfig(conf.awsv2Config),
+		lattice:     vpclattice.NewFromConfig(conf.awsv2Config),
 		loader:      appOpts.loader,
 		config:      appOpts.config,
 		logger:      appOpts.logger,

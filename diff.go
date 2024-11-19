@@ -282,6 +282,13 @@ func ServiceDefinitionForDiff(sv *Service) *ServiceForDiff {
 	sort.SliceStable(sv.Tags, func(i, j int) bool {
 		return aws.ToString(sv.Tags[i].Key) < aws.ToString(sv.Tags[j].Key)
 	})
+	sort.SliceStable(sv.VolumeConfigurations, func(i, j int) bool {
+		return aws.ToString(sv.VolumeConfigurations[i].Name) < aws.ToString(sv.VolumeConfigurations[j].Name)
+	})
+	sort.SliceStable(sv.VpcLatticeConfigurations, func(i, j int) bool {
+		return aws.ToString(sv.VpcLatticeConfigurations[i].PortName) < aws.ToString(sv.VpcLatticeConfigurations[j].PortName)
+	})
+
 	if sv.LaunchType == types.LaunchTypeFargate && sv.PlatformVersion == nil {
 		sv.PlatformVersion = aws.String("LATEST")
 	}

@@ -25,8 +25,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"github.com/aws/aws-sdk-go-v2/service/vpclattice"
 	"github.com/fatih/color"
 	"github.com/kayac/ecspresso/v2/registry"
+	"github.com/samber/lo"
 )
 
 type verifier struct {
@@ -362,6 +364,58 @@ func (d *App) verifyServiceDefinition(ctx context.Context) error {
 				if len(ebs.TagSpecifications) > 1 {
 					d.Log("[WARNING] %s has more than one tag specifications. Only the first tag specification is used.", name)
 				}
+				roleArn := aws.ToString(ebs.RoleArn)
+				if err := verifyResource(ctx, fmt.Sprintf("RoleArn[%s]", roleArn), func(ctx context.Context) error {
+					return d.verifyRole(ctx, roleArn, "ecs.amazonaws.com")
+				}); err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	// VPC Lattice
+	for i, lc := range sv.VpcLatticeConfigurations {
+		name := fmt.Sprintf("VpcLatticeConfiguration[%d]", i)
+		err := verifyResource(ctx, name, func(context.Context) error {
+			roleArn := aws.ToString(lc.RoleArn)
+			if err := verifyResource(ctx, fmt.Sprintf("RoleArn[%s]", roleArn), func(ctx context.Context) error {
+				return d.verifyRole(ctx, roleArn, "ecs.amazonaws.com")
+			}); err != nil {
+				return err
+			}
+
+			tgArn := aws.ToString(lc.TargetGroupArn)
+			if err := verifyResource(ctx, fmt.Sprintf("TargetGroup[%s]", tgArn), func(ctx context.Context) error {
+				_, err := d.lattice.GetTargetGroup(ctx, &vpclattice.GetTargetGroupInput{
+					TargetGroupIdentifier: lc.TargetGroupArn,
+				})
+				return err
+			}); err != nil {
+				return err
+			}
+
+			portName := aws.ToString(lc.PortName)
+			if err := verifyResource(ctx, fmt.Sprintf("PortName[%s]", portName), func(ctx context.Context) error {
+				if portName == "" {
+					return fmt.Errorf("portName is required for vpcLatticeConfiguration")
+				}
+				var portMappings []types.PortMapping
+				for _, cd := range td.ContainerDefinitions {
+					portMappings = append(portMappings, cd.PortMappings...)
+				}
+				if _, found := lo.Find(portMappings, func(pm types.PortMapping) bool {
+					return portName == aws.ToString(pm.Name)
+				}); !found {
+					return fmt.Errorf("portName %s is not found in any containerDefinitions", portName)
+				}
+				return nil
+			}); err != nil {
+				return err
 			}
 			return nil
 		})
@@ -382,7 +436,7 @@ func (d *App) verifyTaskDefinition(ctx context.Context) error {
 	if execRole := td.ExecutionRoleArn; execRole != nil {
 		name := fmt.Sprintf("ExecutionRole[%s]", *execRole)
 		err := verifyResource(ctx, name, func(ctx context.Context) error {
-			return d.verifyRole(ctx, *execRole)
+			return d.verifyRole(ctx, *execRole, "ecs-tasks.amazonaws.com")
 		})
 		if err != nil {
 			return err
@@ -391,7 +445,7 @@ func (d *App) verifyTaskDefinition(ctx context.Context) error {
 	if taskRole := td.TaskRoleArn; taskRole != nil {
 		name := fmt.Sprintf("TaskRole[%s]", *taskRole)
 		err := verifyResource(ctx, name, func(ctx context.Context) error {
-			return d.verifyRole(ctx, *taskRole)
+			return d.verifyRole(ctx, *taskRole, "ecs-tasks.amazonaws.com")
 		})
 		if err != nil {
 			return err
@@ -666,7 +720,7 @@ func extractRoleName(roleArn string) (string, error) {
 	}
 }
 
-func (d *App) verifyRole(ctx context.Context, roleArn string) error {
+func (d *App) verifyRole(ctx context.Context, roleArn, principalService string) error {
 	roleName, err := extractRoleName(roleArn)
 	if err != nil {
 		return err
@@ -682,11 +736,11 @@ func (d *App) verifyRole(ctx context.Context, roleArn string) error {
 		return fmt.Errorf("failed to parse IAM policy document: %w", err)
 	}
 	for _, st := range doc.Statement {
-		if st.Principal.Service == "ecs-tasks.amazonaws.com" && st.Action == "sts:AssumeRole" {
+		if st.Principal.Service == principalService && st.Action == "sts:AssumeRole" {
 			return nil
 		}
 	}
-	return fmt.Errorf("executionRole %s has not a valid policy document: %w", roleName, err)
+	return fmt.Errorf("role %s has not a valid policy document", roleName)
 }
 
 type iamPolicyDocument struct {
